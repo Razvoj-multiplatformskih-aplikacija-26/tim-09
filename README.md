@@ -14,8 +14,6 @@ Projekat iz predmeta Razvoj multiplatformskih aplikacija.
 | Milan Šegan | 107/24 SI | [@github-nalog](https://github.com/sShegy) |
 | Andrija Stojanović | 93/24 SI | [@github-nalog](https://github.com/andrijas6) |
 
-U projektima studenata tabela sadrži oba člana tima, sa brojem indeksa.
-
 ## Zahtevi za temu
 
 1. **Uloge.** Sistem koriste klijenti, perači i administratori sa različitim ovlašćenjima: klijent naručuje pranje, perač prihvata poslove, a administrator nadgleda sistem i rešava žalbe.
