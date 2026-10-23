@@ -1,0 +1,15 @@
+name: domain
+description: CarWash & Go domain model, rules and policies, shared by every client and the server.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.0
+resolution: workspace
+
+dependencies:
+  characters: 1.4.1
+  meta: 1.19.0
+
+dev_dependencies:
+  test: 1.31.1
