@@ -94,103 +94,212 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final start = _start;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Novi zahtev')),
-      body: BlocConsumer<WashRequestFormBloc, WashRequestFormState>(
-        listener: _onFormState,
-        builder: (context, state) {
-          final submitting = state is WashRequestFormSubmitting;
-          return Center(
+    return BlocConsumer<WashRequestFormBloc, WashRequestFormState>(
+      listener: _onFormState,
+      builder: (context, state) {
+        final submitting = state is WashRequestFormSubmitting;
+        return Scaffold(
+          appBar: AppBar(title: const Text('Novi zahtev')),
+          body: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 720),
               child: Form(
                 key: _formKey,
                 autovalidateMode: AutovalidateMode.onUserInteraction,
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    DropdownButtonFormField<VehicleType>(
-                      initialValue: _type,
-                      decoration: const InputDecoration(labelText: 'Tip vozila'),
-                      items: [
-                        for (final type in VehicleType.values) DropdownMenuItem(value: type, child: Text(type.label)),
-                      ],
-                      onChanged: (type) => setState(() => _type = type ?? _type),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _plate,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(
-                        labelText: 'Registarska oznaka',
-                        hintText: LicensePlate.example,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(CarWashTheme.gutter, 0, CarWashTheme.gutter, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SectionHeader('Vozilo'),
+                      Row(
+                        children: [
+                          for (final (index, type) in VehicleType.values.indexed) ...[
+                            if (index > 0) const SizedBox(width: 8),
+                            Expanded(
+                              child: SelectableTile(
+                                selected: type == _type,
+                                onTap: () => setState(() => _type = type),
+                                child: Column(
+                                  children: [
+                                    Icon(type.icon, size: 28, color: type == _type ? theme.colorScheme.primary : null),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      type.label,
+                                      style: theme.textTheme.labelMedium,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                      validator: (value) => LicensePlate.parse(value ?? '').errorOrNull?.message,
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Usluga', style: theme.textTheme.titleSmall),
-                    const SizedBox(height: 8),
-                    SegmentedButton<ServiceTier>(
-                      segments: [
-                        for (final tier in ServiceTier.values) ButtonSegment(value: tier, label: Text(tier.label)),
-                      ],
-                      selected: {_tier},
-                      onSelectionChanged: (selection) => setState(() => _tier = selection.first),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _address,
-                      decoration: const InputDecoration(labelText: 'Adresa vozila', hintText: 'Ulica i broj, grad'),
-                      validator: (value) => Address.parse(value ?? '').errorOrNull?.message,
-                    ),
-                    const SizedBox(height: 16),
-                    FormField<DateTime>(
-                      validator: _validateSlot,
-                      builder: (field) => InkWell(
-                        onTap: () => _pickStart(field),
-                        borderRadius: BorderRadius.circular(14),
-                        child: InputDecorator(
-                          decoration: InputDecoration(
-                            labelText: 'Termin',
-                            errorText: field.errorText,
-                            suffixIcon: const Icon(Icons.event_outlined),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _plate,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(
+                          labelText: 'Registarska oznaka',
+                          hintText: LicensePlate.example,
+                          prefixIcon: Icon(Icons.pin_outlined),
+                        ),
+                        validator: (value) => LicensePlate.parse(value ?? '').errorOrNull?.message,
+                      ),
+                      const SectionHeader('Usluga'),
+                      Row(
+                        children: [
+                          for (final (index, tier) in ServiceTier.values.indexed) ...[
+                            if (index > 0) const SizedBox(width: 12),
+                            Expanded(
+                              child: _TierTile(
+                                tier: tier,
+                                type: _type,
+                                selected: tier == _tier,
+                                onTap: () => setState(() => _tier = tier),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SectionHeader('Gde i kada'),
+                      TextFormField(
+                        controller: _address,
+                        decoration: const InputDecoration(
+                          labelText: 'Adresa vozila',
+                          hintText: 'Ulica i broj, grad',
+                          prefixIcon: Icon(Icons.place_outlined),
+                        ),
+                        validator: (value) => Address.parse(value ?? '').errorOrNull?.message,
+                      ),
+                      const SizedBox(height: 12),
+                      FormField<DateTime>(
+                        validator: _validateSlot,
+                        builder: (field) => InkWell(
+                          onTap: () => _pickStart(field),
+                          borderRadius: BorderRadius.circular(CarWashTheme.radiusMd),
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: 'Termin',
+                              errorText: field.errorText,
+                              prefixIcon: const Icon(Icons.event_outlined),
+                              suffixIcon: const Icon(Icons.chevron_right),
+                            ),
+                            child: Text(start == null ? 'Izaberite datum i vreme' : formatDateAndTime(start)),
                           ),
-                          child: Text(start == null ? 'Izaberite datum i vreme' : formatDateAndTime(start)),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _note,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Napomena za perača (nije obavezna)',
-                        helperText: 'Najviše ${WashNote.maxLength} znakova',
-                      ),
-                      validator: (value) => WashNote.parse(value ?? '').errorOrNull?.message,
-                    ),
-                    const SizedBox(height: 24),
-                    Card(
-                      child: ListTile(
-                        leading: Icon(Icons.payments_outlined, color: theme.colorScheme.primary),
-                        title: const Text('Procena'),
-                        subtitle: Text(
-                          '${formatPrice(_estimate.priceRsd)} · ${formatDuration(_estimate.duration)}',
-                          style: theme.textTheme.titleLarge,
+                      const SectionHeader('Napomena'),
+                      TextFormField(
+                        controller: _note,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Napomena za perača (nije obavezna)',
+                          helperText: 'Najviše ${WashNote.maxLength} znakova',
+                          alignLabelWithHint: true,
                         ),
+                        validator: (value) => WashNote.parse(value ?? '').errorOrNull?.message,
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: submitting ? null : _submit,
-                      child: Text(submitting ? 'Slanje…' : 'Pošalji zahtev'),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          );
-        },
+          ),
+          bottomNavigationBar: _SummaryBar(estimate: _estimate, submitting: submitting, onSubmit: _submit),
+        );
+      },
+    );
+  }
+}
+
+/// Pločica usluge sa cenom i trajanjem za trenutno izabrano vozilo.
+class _TierTile extends StatelessWidget {
+  const _TierTile({required this.tier, required this.type, required this.selected, required this.onTap});
+
+  final ServiceTier tier;
+  final VehicleType type;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final price = estimate(type, tier);
+    return SelectableTile(
+      selected: selected,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconBubble(tier.icon, size: 36),
+              const Spacer(),
+              Icon(
+                selected ? Icons.check_circle : Icons.circle_outlined,
+                color: selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(tier.label, style: theme.textTheme.titleMedium),
+          const SizedBox(height: 2),
+          Text(formatPrice(price.priceRsd), style: theme.textTheme.bodyMedium),
+          Text(
+            formatDuration(price.duration),
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Traka na dnu: ukupna procena uvek na vidiku i dugme za slanje, kao korpa u aplikacijama za dostavu.
+class _SummaryBar extends StatelessWidget {
+  const _SummaryBar({required this.estimate, required this.submitting, required this.onSubmit});
+
+  final PriceEstimate estimate;
+  final bool submitting;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        border: Border(top: BorderSide(color: scheme.outlineVariant)),
+      ),
+      child: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(CarWashTheme.gutter, 12, CarWashTheme.gutter, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Procena', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                  Text(
+                    '${formatPrice(estimate.priceRsd)} · ${formatDuration(estimate.duration)}',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton(
+              onPressed: submitting ? null : onSubmit,
+              style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 24)),
+              child: Text(submitting ? 'Slanje…' : 'Pošalji zahtev'),
+            ),
+          ],
+        ),
       ),
     );
   }

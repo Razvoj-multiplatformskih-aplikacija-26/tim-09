@@ -21,7 +21,7 @@ class RequestDetailScreen extends StatelessWidget {
         if (state is! MyRequestsLoaded || request == null) {
           return Scaffold(
             appBar: AppBar(title: const Text('Zahtev')),
-            body: const Center(child: Text('Zahtev nije pronađen.')),
+            body: const Center(child: EmptyView(title: 'Zahtev nije pronađen.')),
           );
         }
         return _DetailBody(
@@ -55,56 +55,104 @@ class _DetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final slot = request.slot;
     final note = request.note;
     final statusRow = _statusRow(request.status);
     final cancel = onCancel;
+    final rows = [
+      _Row(request.vehicle.type.icon, 'Vozilo', '${request.vehicle.type.label}, ${request.vehicle.plate.value}'),
+      _Row(request.tier.icon, 'Usluga', request.tier.label),
+      _Row(Icons.place_outlined, 'Adresa', request.address.text),
+      _Row(Icons.schedule_outlined, 'Trajanje', '${formatDuration(slot.duration)}, do ${formatTime(slot.end)}'),
+      if (note != null) _Row(Icons.notes_outlined, 'Napomena', note.text),
+      ?statusRow, // dodaje red samo ako nije null
+    ];
     return Scaffold(
       appBar: AppBar(title: const Text('Zahtev za pranje')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(CarWashTheme.gutter, 4, CarWashTheme.gutter, 24),
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Semantics(
-                      header: true,
-                      child: Text(formatTime(slot.start), style: theme.textTheme.displayMedium),
-                    ),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Semantics(
+                                  header: true,
+                                  child: Text(formatTime(slot.start), style: theme.textTheme.displaySmall),
+                                ),
+                                Text(
+                                  formatDate(slot.start),
+                                  style: theme.textTheme.titleMedium?.copyWith(color: scheme.onSurfaceVariant),
+                                ),
+                              ],
+                            ),
+                          ),
+                          WashStatusBadge(status: request.status),
+                        ],
+                      ),
+                      if (request.status.step != null) ...[
+                        const SizedBox(height: 20),
+                        WashProgress(status: request.status),
+                      ],
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Ukupno',
+                              style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                          ),
+                          Text(formatPrice(request.price.priceRsd), style: theme.textTheme.headlineSmall),
+                        ],
+                      ),
+                    ],
                   ),
-                  WashStatusBadge(status: request.status),
-                ],
+                ),
               ),
-              Text(formatDate(slot.start), style: theme.textTheme.titleMedium),
               if (washerLate) ...[
                 const SizedBox(height: 12),
-                Text(
-                  'Perač kasni više od ${washerLateAfter.inMinutes} min. Možete otkazati bez penala.',
-                  style: TextStyle(color: theme.colorScheme.error),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: scheme.errorContainer.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(CarWashTheme.radiusMd),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.schedule, color: scheme.onErrorContainer),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Perač kasni više od ${washerLateAfter.inMinutes} min. Možete otkazati bez penala.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: scheme.onErrorContainer,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
-              const SizedBox(height: 16),
+              const SectionHeader('Detalji'),
               Card(
                 child: Column(
                   children: [
-                    _Row(
-                      Icons.directions_car_outlined,
-                      'Vozilo',
-                      '${request.vehicle.type.label}, ${request.vehicle.plate.value}',
-                    ),
-                    _Row(Icons.local_car_wash_outlined, 'Usluga', request.tier.label),
-                    _Row(Icons.place_outlined, 'Adresa', request.address.text),
-                    _Row(
-                      Icons.schedule_outlined,
-                      'Trajanje',
-                      '${formatDuration(slot.duration)}, do ${formatTime(slot.end)}',
-                    ),
-                    _Row(Icons.payments_outlined, 'Cena', formatPrice(request.price.priceRsd)),
-                    if (note != null) _Row(Icons.notes_outlined, 'Napomena', note.text),
-                    ?statusRow, // dodaje red samo ako nije null
+                    for (final (index, row) in rows.indexed) ...[if (index > 0) const Divider(indent: 76), row],
                   ],
                 ),
               ),
@@ -115,9 +163,13 @@ class _DetailBody extends StatelessWidget {
       bottomNavigationBar: cancel == null && !busy
           ? null
           : SafeArea(
-              minimum: const EdgeInsets.all(16),
+              minimum: const EdgeInsets.fromLTRB(CarWashTheme.gutter, 8, CarWashTheme.gutter, 16),
               child: OutlinedButton.icon(
                 onPressed: busy ? null : cancel,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: scheme.error,
+                  side: BorderSide(color: scheme.error.withValues(alpha: 0.4), width: 1.5),
+                ),
                 icon: busy
                     ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2.5))
                     : const Icon(Icons.close),
@@ -138,10 +190,26 @@ class _Row extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      leading: Icon(icon, color: theme.colorScheme.primary),
-      title: Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-      subtitle: Text(value, style: theme.textTheme.titleMedium),
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            IconBubble(icon),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 2),
+                  Text(value, style: theme.textTheme.titleMedium),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

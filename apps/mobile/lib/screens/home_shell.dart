@@ -10,17 +10,22 @@ class HomeShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: shell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: shell.currentIndex,
-        onDestinationSelected: (index) => shell.goBranch(index, initialLocation: index == shell.currentIndex),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.local_car_wash_outlined),
-            selectedIcon: Icon(Icons.local_car_wash),
-            label: 'Moji zahtevi',
-          ),
-          NavigationDestination(icon: Icon(Icons.sell_outlined), selectedIcon: Icon(Icons.sell), label: 'Cenovnik'),
-        ],
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
+        ),
+        child: NavigationBar(
+          selectedIndex: shell.currentIndex,
+          onDestinationSelected: (index) => shell.goBranch(index, initialLocation: index == shell.currentIndex),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.local_car_wash_outlined),
+              selectedIcon: Icon(Icons.local_car_wash),
+              label: 'Moji zahtevi',
+            ),
+            NavigationDestination(icon: Icon(Icons.sell_outlined), selectedIcon: Icon(Icons.sell), label: 'Cenovnik'),
+          ],
+        ),
       ),
     );
   }
