@@ -84,7 +84,6 @@ extension WashStatusStyle on WashStatus {
   };
 }
 
-/// Čip stanja: obojena tačka i naziv na blagoj pozadini iste boje.
 class WashStatusBadge extends StatelessWidget {
   const WashStatusBadge({super.key, required this.status});
 
@@ -120,7 +119,7 @@ class WashStatusBadge extends StatelessWidget {
   }
 }
 
-/// Traka napretka u četiri dela, kao praćenje dostave. Za otkazan zahtev se ne crta.
+/// Traka napretka u četiri dela; za otkazan zahtev se ne crta.
 class WashProgress extends StatelessWidget {
   const WashProgress({super.key, required this.status});
 

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-/// Učitavanje: „kosturi“ kartica koji blago pulsiraju dok podaci ne stignu.
 class ListSkeleton extends StatefulWidget {
   const ListSkeleton({super.key, this.cards = 4});
 
@@ -46,7 +45,6 @@ class _ListSkeletonState extends State<ListSkeleton> with SingleTickerProviderSt
   }
 }
 
-/// Zajednički izgled praznog i neuspelog prikaza: velika ikonica u krugu, naslov, opis i akcija.
 class _MessageView extends StatelessWidget {
   const _MessageView({required this.icon, required this.color, required this.title, this.subtitle, this.action});
 

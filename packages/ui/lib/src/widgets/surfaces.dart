@@ -19,7 +19,6 @@ extension ServiceTierIcon on ServiceTier {
   };
 }
 
-/// Ikonica u obojenom krugu, kao u listama Revolut-a.
 class IconBubble extends StatelessWidget {
   const IconBubble(this.icon, {super.key, this.color, this.size = 44});
 
@@ -39,7 +38,7 @@ class IconBubble extends StatelessWidget {
   }
 }
 
-/// Naslov odeljka u listi, sa opcionim delom desno (npr. broj stavki).
+/// Naslov odeljka, sa opcionim tekstom desno.
 class SectionHeader extends StatelessWidget {
   const SectionHeader(this.title, {super.key, this.trailing});
 
@@ -65,7 +64,7 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-/// Pločica za izbor jedne opcije (tip vozila, usluga). Izabrana dobija plavu ivicu i blagu pozadinu.
+/// Pločica za izbor jedne opcije (tip vozila, usluga).
 class SelectableTile extends StatelessWidget {
   const SelectableTile({super.key, required this.selected, required this.onTap, required this.child});
 

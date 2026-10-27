@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Tema aplikacija: plava boja „vode“, svetlosive pozadine i bele kartice bez ivica,
-/// kao u današnjim aplikacijama za naručivanje (Bolt, Uber, Revolut). Font je Inter iz paketa ui.
+/// Tema aplikacije: boje, font Inter i izgled zajedničkih komponenti.
 abstract final class CarWashTheme {
   static const brandColor = Color(0xFF0B5CAD);
 
@@ -18,7 +17,6 @@ abstract final class CarWashTheme {
 
   static ThemeData dark() => _build(Brightness.dark);
 
-  /// Prelaz za hero karticu „Novi zahtev“, isti u obe teme da brend ostane prepoznatljiv.
   static const heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -32,7 +30,6 @@ abstract final class CarWashTheme {
       brightness: brightness,
       dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
     );
-    // Pozadine su iste kao na splash ekranu (#F4F8FC / #0E1A26), kartice odskaču od njih.
     return isDark
         ? seeded.copyWith(
             primary: const Color(0xFF6CB4FF),

@@ -215,7 +215,6 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
   }
 }
 
-/// Pločica usluge sa cenom i trajanjem za trenutno izabrano vozilo.
 class _TierTile extends StatelessWidget {
   const _TierTile({required this.tier, required this.type, required this.selected, required this.onTap});
 
@@ -258,7 +257,6 @@ class _TierTile extends StatelessWidget {
   }
 }
 
-/// Traka na dnu: ukupna procena uvek na vidiku i dugme za slanje, kao korpa u aplikacijama za dostavu.
 class _SummaryBar extends StatelessWidget {
   const _SummaryBar({required this.estimate, required this.submitting, required this.onSubmit});
 

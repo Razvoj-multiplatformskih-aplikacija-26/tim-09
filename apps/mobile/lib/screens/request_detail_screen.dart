@@ -66,7 +66,7 @@ class _DetailBody extends StatelessWidget {
       _Row(Icons.place_outlined, 'Adresa', request.address.text),
       _Row(Icons.schedule_outlined, 'Trajanje', '${formatDuration(slot.duration)}, do ${formatTime(slot.end)}'),
       if (note != null) _Row(Icons.notes_outlined, 'Napomena', note.text),
-      ?statusRow, // dodaje red samo ako nije null
+      ?statusRow,
     ];
     return Scaffold(
       appBar: AppBar(title: const Text('Zahtev za pranje')),

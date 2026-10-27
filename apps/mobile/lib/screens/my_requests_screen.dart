@@ -106,7 +106,6 @@ class MyRequestsScreen extends StatelessWidget {
   }
 }
 
-/// Pozdrav sa inicijalom korisnika, kao zaglavlje u Bolt-u i Revolut-u.
 class _Greeting extends StatelessWidget {
   const _Greeting();
 
@@ -143,7 +142,6 @@ class _Greeting extends StatelessWidget {
   }
 }
 
-/// Plava kartica sa glavnom akcijom ekrana — naručivanje novog pranja.
 class _OrderHero extends StatelessWidget {
   const _OrderHero();
 
@@ -202,7 +200,6 @@ class _OrderHero extends StatelessWidget {
   }
 }
 
-/// Aktivan zahtev: vreme, stanje, traka napretka i akcija otkazivanja.
 class _ActiveCard extends StatelessWidget {
   const _ActiveCard({
     required this.request,
@@ -281,7 +278,6 @@ class _ActiveCard extends StatelessWidget {
   }
 }
 
-/// Završen ili otkazan zahtev: jedan sažet red u grupisanoj listi.
 class _PastRow extends StatelessWidget {
   const _PastRow({super.key, required this.request, required this.onOpen, this.onCancel, this.busy = false});
 
