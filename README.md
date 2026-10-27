@@ -11,14 +11,14 @@ Projekat iz predmeta Razvoj multiplatformskih aplikacija.
 
 | Ime i prezime | Broj indeksa | GitHub nalog |
 | --- | --- | --- |
-| Milan Šegan | 107/24 SI | [@github-nalog](https://github.com/sShegy) |
-| Andrija Stojanović | 93/24 SI | [@github-nalog](https://github.com/andrijas6) |
+| Milan Šegan | 107/24 SI | [@sShegy](https://github.com/sShegy) |
+| Andrija Stojanović | 93/24 SI | [@andrijas6](https://github.com/andrijas6) |
 
 ## Zahtevi za temu
 
 1. **Uloge.** Sistem koriste klijenti, perači i administratori sa različitim ovlašćenjima: klijent naručuje pranje, perač prihvata poslove, a administrator nadgleda sistem i rešava žalbe.
 2. **Stanja.** Zahtev za pranje prolazi kroz više stanja: prijavljen na lokaciji, prihvaćen od strane perača, u toku (pranje se obavlja), i na kraju završen ili otkazan.
-3. **Pravila.** Perač ne može prihvatiti novi zahtev za pranje ukoliko već ima aktivan posao u toku, o čemu konačnu odluku donosi server proverom preklapanja.
+3. **Pravila.** Perač ne može prihvatiti novi zahtev za pranje ukoliko već ima aktivan posao u toku, o čemu konačnu odluku donosi server proverom preklapanja. Klijent zakazuje termin najmanje 1 h, a najviše 7 dana unapred, na pun sat ili pola sata, tako da pranje počne i završi se između 8 i 20 h; registarska oznaka mora biti u formatu „BG 123-AB“, a napomena za perača ima najviše 300 znakova. Klijent može imati najviše 3 zahteva na čekanju, a prihvaćen zahtev može da otkaže najkasnije 1 h pre termina, osim ako perač kasni više od 30 minuta.
 4. **Rad bez mreže.** Perač može uslikati opran auto i označiti posao kao završen čak i u podzemnoj garaži bez signala; podaci se automatski šalju na server kada se veza uspostavi.
 5. **Posao za osoblje.** Administrator u backoffice aplikaciji na velikom ekranu ima uvid u zbirnu mapu svih aktivnih zahteva, prati lokacije perača i odobrava njihove profile.
 6. **Javni sadržaj.** Cenovnik usluga, kalkulator procene cene pranja na osnovu tipa vozila i recenzije dostupni su svima bez prijave, što ima smisla da pronađu pretraživači.

@@ -1,0 +1,52 @@
+name: mobile
+description: CarWash & Go client app for ordering a car wash at the vehicle's location.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.0
+resolution: workspace
+
+dependencies:
+  blocs:
+    path: ../../packages/blocs
+  domain:
+    path: ../../packages/domain
+  flutter:
+    sdk: flutter
+  flutter_bloc: 9.1.1
+  flutter_localizations:
+    sdk: flutter
+  go_router: 18.0.2
+  intl: 0.20.3
+  ui:
+    path: ../../packages/ui
+  use_cases:
+    path: ../../packages/use_cases
+
+dev_dependencies:
+  flutter_launcher_icons: 0.14.4
+  flutter_lints: 6.0.0
+  flutter_native_splash: 2.4.8
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: assets/brand/icon.png
+  adaptive_icon_background: "#0B5CAD"
+  adaptive_icon_foreground: assets/brand/icon_foreground.png
+
+flutter_native_splash:
+  color: "#F4F8FC"
+  color_dark: "#0E1A26"
+  image: assets/brand/splash.png
+  android_12:
+    color: "#F4F8FC"
+    color_dark: "#0E1A26"
+    image: assets/brand/splash.png
