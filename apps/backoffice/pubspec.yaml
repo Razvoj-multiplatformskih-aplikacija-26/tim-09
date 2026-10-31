@@ -1,0 +1,27 @@
+name: backoffice
+description: Backoffice aplikacija za dispečere i osoblje (Tim 09).
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_bloc: ^9.1.1
+  blocs:
+    path: ../../packages/blocs
+  domain:
+    path: ../../packages/domain
+  use_cases:
+    path: ../../packages/use_cases
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
