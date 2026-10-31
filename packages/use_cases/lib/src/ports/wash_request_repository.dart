@@ -11,4 +11,6 @@ abstract interface class WashRequestRepository {
   Future<WashRequest> create(WashRequestDraft draft);
 
   Future<WashRequest> save(WashRequest request);
+
+  Future<List<WashRequest>> allRequests();
 }

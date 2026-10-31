@@ -78,3 +78,7 @@ final class NotAllowed extends DomainError {
 final class NotFound extends DomainError {
   const NotFound();
 }
+
+final class WasherBusy extends DomainError {
+  const WasherBusy();
+}

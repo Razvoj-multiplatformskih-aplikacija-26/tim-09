@@ -5,3 +5,6 @@ export 'src/ports/wash_request_repository.dart';
 export 'src/repository_exception.dart';
 export 'src/submit_request.dart';
 export 'src/wash_request_draft.dart';
+export 'src/get_all_requests.dart';
+export 'src/accept_request.dart';
+export 'src/release_request.dart';

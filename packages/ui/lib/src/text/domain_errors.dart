@@ -17,5 +17,6 @@ extension DomainErrorMessage on DomainError {
     InvalidTransition() => 'Ova promena zahteva nije moguća.',
     NotAllowed() => 'Nemate pravo na ovu radnju.',
     NotFound() => 'Zahtev nije pronađen.',
+    WasherBusy() => 'Perač je trenutno zauzet drugim poslom.',
   };
 }

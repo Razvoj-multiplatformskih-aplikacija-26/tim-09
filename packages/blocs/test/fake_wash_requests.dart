@@ -50,4 +50,10 @@ final class FakeWashRequests implements WashRequestRepository {
     _requests[_requests.indexWhere((r) => r.id == request.id)] = request;
     return request;
   }
+
+  @override
+  Future<List<WashRequest>> allRequests() async {
+  _maybeFail();
+  return List.of(_requests); 
+  }
 }

@@ -68,4 +68,14 @@ final class FakeCarWash implements WashRequestRepository {
     _requests[index] = request;
     return request;
   }
+
+  @override
+  Future<List<WashRequest>> allRequests() async {
+    await _roundTrip();
+    if (emptyResponses > 0) {
+      emptyResponses--;
+      return [];
+    }
+    return List.of(_requests);
+  }
 }
