@@ -51,10 +51,7 @@ void main() {
     'bez zahteva u sistemu → DispatchEmpty',
     build: () => blocWith(FakeWashRequests()),
     act: (bloc) => bloc.add(const DispatchRequested()),
-    expect: () => [
-      const DispatchLoading(),
-      const DispatchEmpty(),
-    ],
+    expect: () => [const DispatchLoading(), const DispatchEmpty()],
   );
 
   blocTest<DispatchBloc, DispatchState>(
@@ -67,7 +64,7 @@ void main() {
     ],
   );
 
-blocTest<DispatchBloc, DispatchState>(
+  blocTest<DispatchBloc, DispatchState>(
     'prihvatanje zahteva od strane dispečera (AcceptRequested)',
     build: () => blocWith(FakeWashRequests([pending])),
     seed: () => DispatchLoaded(requests: [pending]),
@@ -78,10 +75,7 @@ blocTest<DispatchBloc, DispatchState>(
       );
       return [
         DispatchLoaded(requests: [pending], busyId: pending.id),
-        DispatchLoaded(
-          requests: [updated],
-          notice: const DispatchActionSuccess('Zahtev je uspešno dodeljen peraču.'),
-        ),
+        DispatchLoaded(requests: [updated], notice: const DispatchActionSuccess('Zahtev je uspešno dodeljen peraču.')),
       ];
     },
   );

@@ -49,71 +49,18 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
     }
   }
 
-  Future<void> _onAcceptRequested(AcceptRequested event, Emitter<DispatchState> emit) async {
-    final current = state;
-    if (current is! DispatchLoaded) return;
-    emit(current.copyWith(busyId: event.id));
+  Future<void> _onAcceptRequested(AcceptRequested event, Emitter<DispatchState> emit) => _act(
+    emit,
+    event.id,
+    () => acceptRequest(id: event.id, washer: event.washerId, by: dispatcher, now: clock.now()),
+    RequestAssigned.new,
+  );
 
-    try {
-      final result = await acceptRequest(
-        id: event.id,
-        washer: event.washerId,
-        by: dispatcher,
-        now: clock.now(),
-      );
-      switch (result) {
-        case Success():
-          await _reload(emit, notice: const DispatchActionSuccess('Zahtev je uspešno dodeljen peraču.'));
-        case Failure(:final error):
-          emit(current.copyWith(clearBusy: true, notice: DispatchActionRejected(error)));
-      }
-    } on Exception catch (cause) {
-      emit(current.copyWith(clearBusy: true, notice: DispatchActionFailed(cause)));
-    }
-  }
+  Future<void> _onReleaseRequested(ReleaseRequested event, Emitter<DispatchState> emit) =>
+      _act(emit, event.id, () => releaseRequest(id: event.id, by: dispatcher), RequestReleased.new);
 
-  Future<void> _onReleaseRequested(ReleaseRequested event, Emitter<DispatchState> emit) async {
-    final current = state;
-    if (current is! DispatchLoaded) return;
-    emit(current.copyWith(busyId: event.id));
-
-    try {
-      final result = await releaseRequest(
-        id: event.id,
-        by: dispatcher,
-      );
-      switch (result) {
-        case Success():
-          await _reload(emit, notice: const DispatchActionSuccess('Zahtev je vraćen u red.'));
-        case Failure(:final error):
-          emit(current.copyWith(clearBusy: true, notice: DispatchActionRejected(error)));
-      }
-    } on Exception catch (cause) {
-      emit(current.copyWith(clearBusy: true, notice: DispatchActionFailed(cause)));
-    }
-  }
-
-  Future<void> _onCancelRequested(DispatchCancelRequested event, Emitter<DispatchState> emit) async {
-    final current = state;
-    if (current is! DispatchLoaded) return;
-    emit(current.copyWith(busyId: event.id));
-
-    try {
-      final result = await cancelRequest(
-        id: event.id,
-        by: dispatcher,
-        reason: event.reason,
-      );
-      switch (result) {
-        case Success():
-          await _reload(emit, notice: const DispatchActionSuccess('Zahtev je uspešno otkazan.'));
-        case Failure(:final error):
-          emit(current.copyWith(clearBusy: true, notice: DispatchActionRejected(error)));
-      }
-    } on Exception catch (cause) {
-      emit(current.copyWith(clearBusy: true, notice: DispatchActionFailed(cause)));
-    }
-  }
+  Future<void> _onCancelRequested(DispatchCancelRequested event, Emitter<DispatchState> emit) =>
+      _act(emit, event.id, () => cancelRequest(id: event.id, by: dispatcher), RequestCancelledByStaff.new);
 
   Future<void> _reload(Emitter<DispatchState> emit, {DispatchNotice? notice}) async {
     try {
@@ -126,13 +73,33 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
       final selectedId = current is DispatchLoaded ? current.selectedId : null;
       final validSelectedId = requests.any((r) => r.id == selectedId) ? selectedId : null;
 
-      emit(DispatchLoaded(
-        requests: requests,
-        selectedId: validSelectedId,
-        notice: notice,
-      ));
+      emit(DispatchLoaded(requests: requests, selectedId: validSelectedId, notice: notice));
     } on Exception catch (cause) {
       emit(DispatchFailure(cause));
+    }
+  }
+
+  Future<void> _act(
+    Emitter<DispatchState> emit,
+    WashRequestId id,
+    Future<Result<WashRequest>> Function() action,
+    DispatchNotice Function(WashRequest) onSuccess,
+  ) async {
+    final current = state;
+    if (current is! DispatchLoaded || current.busyId != null) return;
+    emit(current.copyWith(busyId: id));
+    final Result<WashRequest> result;
+    try {
+      result = await action();
+    } on Exception catch (cause) {
+      emit(current.copyWith(clearBusy: true, notice: DispatchActionFailed(cause)));
+      return;
+    }
+    switch (result) {
+      case Success(:final value):
+        await _reload(emit, notice: onSuccess(value));
+      case Failure(:final error):
+        emit(current.copyWith(clearBusy: true, notice: DispatchActionRejected(error)));
     }
   }
 }

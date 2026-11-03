@@ -1,4 +1,5 @@
 import 'package:domain/domain.dart';
+
 import 'ports/wash_request_repository.dart';
 
 final class AcceptRequest {

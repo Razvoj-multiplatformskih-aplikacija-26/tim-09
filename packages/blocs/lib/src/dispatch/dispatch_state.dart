@@ -28,17 +28,14 @@ final class DispatchEmpty extends DispatchState {
 }
 
 final class DispatchLoaded extends DispatchState {
-  const DispatchLoaded({
-    required this.requests,
-    this.selectedId,
-    this.busyId,
-    this.notice,
-  });
+  const DispatchLoaded({required this.requests, this.selectedId, this.busyId, this.notice});
 
   final List<WashRequest> requests;
   final WashRequestId? selectedId;
   final WashRequestId? busyId;
   final DispatchNotice? notice;
+
+  WashRequest? get selected => requests.where((r) => r.id == selectedId).firstOrNull;
 
   @override
   List<Object?> get props => [requests, selectedId, busyId, notice];
@@ -67,6 +64,33 @@ sealed class DispatchNotice extends Equatable {
 
   @override
   List<Object?> get props => const [];
+}
+
+final class RequestAssigned extends DispatchNotice {
+  const RequestAssigned(this.request);
+
+  final WashRequest request;
+
+  @override
+  List<Object?> get props => [request];
+}
+
+final class RequestReleased extends DispatchNotice {
+  const RequestReleased(this.request);
+
+  final WashRequest request;
+
+  @override
+  List<Object?> get props => [request];
+}
+
+final class RequestCancelledByStaff extends DispatchNotice {
+  const RequestCancelledByStaff(this.request);
+
+  final WashRequest request;
+
+  @override
+  List<Object?> get props => [request];
 }
 
 final class DispatchActionSuccess extends DispatchNotice {

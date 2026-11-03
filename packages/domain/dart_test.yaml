@@ -1,1 +1,1 @@
-platforms: [vm]
+platforms: [vm, chrome]

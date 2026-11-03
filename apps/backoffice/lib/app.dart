@@ -1,38 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:blocs/blocs.dart';
-import 'package:domain/domain.dart';
-import 'package:use_cases/use_cases.dart';
+import 'package:ui/ui.dart';
 
-import 'data/fake_dispatch_repository.dart';
+import 'dependencies.dart';
 import 'presentation/screens/dispatch_dashboard.dart';
 
-class BackofficeApp extends StatelessWidget {
-  const BackofficeApp({super.key});
+class BackofficeApp extends StatefulWidget {
+  const BackofficeApp({super.key, required this.dependencies});
+
+  final BackofficeDependencies dependencies;
+
+  @override
+  State<BackofficeApp> createState() => _BackofficeAppState();
+}
+
+class _BackofficeAppState extends State<BackofficeApp> {
+  late final DispatchBloc _dispatchBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _dispatchBloc = DispatchBloc(
+      getAllRequests: widget.dependencies.getAllRequests,
+      acceptRequest: widget.dependencies.acceptRequest,
+      releaseRequest: widget.dependencies.releaseRequest,
+      cancelRequest: widget.dependencies.cancelRequest,
+      dispatcher: widget.dependencies.user,
+      clock: widget.dependencies.clock,
+    )..add(const DispatchRequested());
+  }
+
+  @override
+  void dispose() {
+    _dispatchBloc.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final repository = FakeDispatchRepository();
-    const dispatcher = User(
-      id: UserId('disp-1'),
-      username: 'Glavni Dispečer',
-      role: Role.dispatcher,
-    );
-    final clock = LocalClock();
-
-    return MaterialApp(
-      title: 'Car Wash Backoffice',
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
-      home: BlocProvider(
-        create: (context) => DispatchBloc(
-          getAllRequests: GetAllRequests(requests: repository),
-          acceptRequest: AcceptRequest(requests: repository),
-          releaseRequest: ReleaseRequest(requests: repository),
-          cancelRequest: CancelRequest(requests: repository, clock: clock),
-          clock: clock,
-          dispatcher: dispatcher,
-        )..add(const DispatchRequested()),
-        child: DispatchDashboard(repository: repository),
+    return RepositoryProvider.value(
+      value: widget.dependencies,
+      child: MaterialApp(
+        title: 'Dispečerska tabla',
+        theme: CarWashTheme.light(),
+        darkTheme: CarWashTheme.dark(),
+        themeMode: ThemeMode.system,
+        locale: const Locale.fromSubtags(languageCode: 'sr', scriptCode: 'Latn'),
+        supportedLocales: const [Locale.fromSubtags(languageCode: 'sr', scriptCode: 'Latn')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: BlocProvider.value(value: _dispatchBloc, child: const DispatchDashboard()),
       ),
     );
   }

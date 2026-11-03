@@ -53,7 +53,7 @@ final class FakeWashRequests implements WashRequestRepository {
 
   @override
   Future<List<WashRequest>> allRequests() async {
-  _maybeFail();
-  return List.of(_requests); 
+    _maybeFail();
+    return List.of(_requests);
   }
 }

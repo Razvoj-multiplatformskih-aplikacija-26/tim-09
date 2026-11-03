@@ -1,4 +1,5 @@
 import 'package:domain/domain.dart';
+
 import 'ports/wash_request_repository.dart';
 
 final class ReleaseRequest {
@@ -6,10 +7,7 @@ final class ReleaseRequest {
 
   final WashRequestRepository requests;
 
-  Future<Result<WashRequest>> call({
-    required WashRequestId id,
-    required User by,
-  }) async {
+  Future<Result<WashRequest>> call({required WashRequestId id, required User by}) async {
     final request = await requests.find(id);
     if (request == null) return const Failure(NotFound());
 

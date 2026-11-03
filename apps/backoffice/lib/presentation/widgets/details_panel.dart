@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:blocs/blocs.dart';
 import 'package:domain/domain.dart';
+import 'package:backoffice/dependencies.dart';
 
 class DetailsPanel extends StatelessWidget {
-  const DetailsPanel({super.key, required this.request});
+  const DetailsPanel({super.key, required this.request, required this.isBusy});
   final WashRequest request;
+  final bool isBusy;
 
   @override
   Widget build(BuildContext context) {
+    final status = request.status;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -24,30 +28,78 @@ class DetailsPanel extends StatelessWidget {
         const SizedBox(height: 8),
         Text('Adresa: ${request.address}'),
         const SizedBox(height: 8),
-        Text('Status: ${request.status.runtimeType}'),
+        Text('Status: ${status.runtimeType}'),
         const Spacer(),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            ElevatedButton.icon(
-              icon: const Icon(Icons.check),
-              label: const Text('Dodeli (A)'),
-              onPressed: () {
-                // 1. Pošalji zahtev za prihvatanje
-                context.read<DispatchBloc>().add(
-                      AcceptRequested(request.id, const WasherId('washer-1')),
-                    );
-                // 2. Odmah zatraži osvežavanje liste da se status promeni u Accepted
-                context.read<DispatchBloc>().add(const DispatchRequested());
-                
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Zahtev ${request.id.value} dodeljen peraču!')),
-                );
-              },
-            ),
-          ],
-        ),
+        if (isBusy)
+          const Center(child: CircularProgressIndicator())
+        else
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              if (status is Submitted) ...[
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.check),
+                  label: const Text('Dodeli'),
+                  onPressed: () => _pickWasherAndAssign(context, request),
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.cancel),
+                  label: const Text('Otkaži'),
+                  onPressed: () => _confirmAndCancel(context, request.id),
+                ),
+              ] else if (status is Accepted) ...[
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.undo),
+                  label: const Text('Vrati u red'),
+                  onPressed: () => context.read<DispatchBloc>().add(ReleaseRequested(request.id)),
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.cancel),
+                  label: const Text('Otkaži'),
+                  onPressed: () => _confirmAndCancel(context, request.id),
+                ),
+              ] else if (status is InProgress) ...[
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.cancel),
+                  label: const Text('Otkaži'),
+                  onPressed: () => _confirmAndCancel(context, request.id),
+                ),
+              ],
+            ],
+          ),
       ],
     );
+  }
+
+  Future<void> _pickWasherAndAssign(BuildContext context, WashRequest request) async {
+    final washer = await showDialog<WasherId>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Dodeli perača'),
+        children: [
+          for (final w in BackofficeDependencies.washers)
+            SimpleDialogOption(onPressed: () => Navigator.pop(context, w.id), child: Text(w.name)),
+        ],
+      ),
+    );
+    if (washer == null || !context.mounted) return;
+    context.read<DispatchBloc>().add(AcceptRequested(request.id, washer));
+  }
+
+  Future<void> _confirmAndCancel(BuildContext context, WashRequestId id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Otkaži zahtev'),
+        content: const Text('Da li ste sigurni da želite da otkažete ovaj zahtev?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Odustani')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Otkaži')),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      context.read<DispatchBloc>().add(DispatchCancelRequested(id));
+    }
   }
 }

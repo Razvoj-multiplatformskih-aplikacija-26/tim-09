@@ -49,20 +49,22 @@ final class Accepted extends WashStatus {
 }
 
 /// U toku: perač je stigao i pere vozilo.
+/// U toku: perač je stigao i pere vozilo.
 @immutable
 final class InProgress extends WashStatus {
-  const InProgress({required this.arrivedAt});
+  const InProgress({required this.washerId, required this.arrivedAt});
 
+  final WasherId washerId;
   final DateTime arrivedAt;
 
   @override
-  bool operator ==(Object other) => other is InProgress && other.arrivedAt == arrivedAt;
+  bool operator ==(Object other) => other is InProgress && other.washerId == washerId && other.arrivedAt == arrivedAt;
 
   @override
-  int get hashCode => arrivedAt.hashCode;
+  int get hashCode => Object.hash(washerId, arrivedAt);
 
   @override
-  String toString() => 'InProgress(since $arrivedAt)';
+  String toString() => 'InProgress($washerId since $arrivedAt)';
 }
 
 /// Završen: pranje je gotovo.

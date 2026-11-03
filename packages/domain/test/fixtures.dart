@@ -21,3 +21,5 @@ WashRequest requestAt(DateTime start, {WashStatus status = const Submitted(), Us
 }
 
 Accepted accepted() => Accepted(washerId: const WasherId('w-1'), acceptedBy: dispatcher.id, at: now);
+
+InProgress inProgress() => InProgress(washerId: const WasherId('w-1'), arrivedAt: now);
