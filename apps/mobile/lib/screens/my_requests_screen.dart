@@ -18,7 +18,9 @@ class MyRequestsScreen extends StatelessWidget {
       CancellationRejected(:final error) => error.message,
       CancellationFailed() => 'Otkazivanje nije uspelo. Pokušajte ponovo.',
     };
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
     context.read<MyRequestsBloc>().add(const MyRequestsNoticeAcknowledged());
   }
 

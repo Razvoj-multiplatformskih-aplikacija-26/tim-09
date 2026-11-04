@@ -43,13 +43,15 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
     return WashSlot.parse(start, duration: _estimate.duration, now: now).errorOrNull?.message;
   }
 
+  /// Kalendar nudi samo dane koje pravilo o terminu dozvoljava, po istom satu kao i provera.
   Future<void> _pickStart(FormFieldState<DateTime> field) async {
-    final now = DateTime.now();
+    final now = context.read<AppDependencies>().clock.now();
     final date = await showDatePicker(
       context: context,
       firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 30)),
+      lastDate: now.add(WashSlot.maxAdvance),
       initialDate: _start ?? now,
+      currentDate: now,
     );
     if (date == null || !mounted) return;
     final time = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 10, minute: 0));
@@ -75,7 +77,8 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
   }
 
   void _onFormState(BuildContext context, WashRequestFormState state) {
-    final messenger = ScaffoldMessenger.of(context);
+    // Nova poruka zamenjuje staru, da ne čeka u redu dok prethodna ne istekne.
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
     switch (state) {
       case WashRequestFormDone():
         context.read<MyRequestsBloc>().add(const MyRequestsRequested());
