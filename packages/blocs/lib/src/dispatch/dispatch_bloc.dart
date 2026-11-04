@@ -6,6 +6,7 @@ import 'package:use_cases/use_cases.dart';
 part 'dispatch_event.dart';
 part 'dispatch_state.dart';
 
+/// Dispečerska tabla: svi zahtevi, izbor jednog i radnje osoblja nad njim.
 final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
   DispatchBloc({
     required this.getAllRequests,
@@ -17,8 +18,8 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
   }) : super(const DispatchLoading()) {
     on<DispatchRequested>(_onRequested);
     on<DispatchRequestSelected>(_onSelected);
-    on<AcceptRequested>(_onAcceptRequested);
-    on<ReleaseRequested>(_onReleaseRequested);
+    on<DispatchAcceptRequested>(_onAcceptRequested);
+    on<DispatchReleaseRequested>(_onReleaseRequested);
     on<DispatchCancelRequested>(_onCancelRequested);
     on<DispatchNoticeAcknowledged>(_onNoticeAcknowledged);
   }
@@ -31,8 +32,12 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
   final User dispatcher;
 
   Future<void> _onRequested(DispatchRequested event, Emitter<DispatchState> emit) async {
+    final selectedId = switch (state) {
+      DispatchLoaded(:final selectedId) => selectedId,
+      _ => null,
+    };
     emit(const DispatchLoading());
-    await _reload(emit);
+    await _reload(emit, selectedId: selectedId);
   }
 
   void _onSelected(DispatchRequestSelected event, Emitter<DispatchState> emit) {
@@ -49,36 +54,40 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
     }
   }
 
-  Future<void> _onAcceptRequested(AcceptRequested event, Emitter<DispatchState> emit) => _act(
+  Future<void> _onAcceptRequested(DispatchAcceptRequested event, Emitter<DispatchState> emit) => _act(
     emit,
     event.id,
     () => acceptRequest(id: event.id, washer: event.washerId, by: dispatcher, now: clock.now()),
     RequestAssigned.new,
   );
 
-  Future<void> _onReleaseRequested(ReleaseRequested event, Emitter<DispatchState> emit) =>
+  Future<void> _onReleaseRequested(DispatchReleaseRequested event, Emitter<DispatchState> emit) =>
       _act(emit, event.id, () => releaseRequest(id: event.id, by: dispatcher), RequestReleased.new);
 
-  Future<void> _onCancelRequested(DispatchCancelRequested event, Emitter<DispatchState> emit) =>
-      _act(emit, event.id, () => cancelRequest(id: event.id, by: dispatcher), RequestCancelledByStaff.new);
+  Future<void> _onCancelRequested(DispatchCancelRequested event, Emitter<DispatchState> emit) => _act(
+    emit,
+    event.id,
+    () => cancelRequest(id: event.id, by: dispatcher, reason: event.reason),
+    RequestCancelledByStaff.new,
+  );
 
-  Future<void> _reload(Emitter<DispatchState> emit, {DispatchNotice? notice}) async {
+  /// Izbor preživljava osvežavanje samo ako je zahtev i dalje u listi.
+  Future<void> _reload(Emitter<DispatchState> emit, {WashRequestId? selectedId, DispatchNotice? notice}) async {
     try {
       final requests = await getAllRequests();
       if (requests.isEmpty) {
         emit(const DispatchEmpty());
         return;
       }
-      final current = state;
-      final selectedId = current is DispatchLoaded ? current.selectedId : null;
-      final validSelectedId = requests.any((r) => r.id == selectedId) ? selectedId : null;
-
-      emit(DispatchLoaded(requests: requests, selectedId: validSelectedId, notice: notice));
+      final stillThere = requests.any((r) => r.id == selectedId);
+      emit(DispatchLoaded(requests: requests, selectedId: stillThere ? selectedId : null, notice: notice));
     } on Exception catch (cause) {
       emit(DispatchFailure(cause));
     }
   }
 
+  /// Zajednički tok radnje: zauzmi zahtev, pozovi use case, pa osveži listu ili javi zašto nije prošlo.
+  /// Dok jedna radnja traje, nova se ignoriše.
   Future<void> _act(
     Emitter<DispatchState> emit,
     WashRequestId id,
@@ -97,7 +106,7 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
     }
     switch (result) {
       case Success(:final value):
-        await _reload(emit, notice: onSuccess(value));
+        await _reload(emit, selectedId: current.selectedId, notice: onSuccess(value));
       case Failure(:final error):
         emit(current.copyWith(clearBusy: true, notice: DispatchActionRejected(error)));
     }

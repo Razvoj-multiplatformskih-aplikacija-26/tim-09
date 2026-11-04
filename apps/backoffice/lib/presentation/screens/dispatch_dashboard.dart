@@ -52,7 +52,6 @@ class DispatchDashboard extends StatelessWidget {
       RequestCancelledByStaff() => 'Zahtev je otkazan.',
       DispatchActionRejected(:final error) => error.message,
       DispatchActionFailed() => 'Radnja nije uspela. Pokušajte ponovo.',
-      _ => 'Akcija završena.',
     };
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     context.read<DispatchBloc>().add(const DispatchNoticeAcknowledged());
@@ -70,7 +69,7 @@ class DispatchDashboard extends StatelessWidget {
       ),
     );
     if (washer == null || !context.mounted) return;
-    context.read<DispatchBloc>().add(AcceptRequested(request.id, washer));
+    context.read<DispatchBloc>().add(DispatchAcceptRequested(request.id, washer));
   }
 
   Widget _buildContent(BuildContext context, DispatchLoaded state) {

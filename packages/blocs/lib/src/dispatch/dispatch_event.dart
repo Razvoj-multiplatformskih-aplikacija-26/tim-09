@@ -9,24 +9,24 @@ final class DispatchRequested extends DispatchEvent {
   const DispatchRequested();
 }
 
-/// Korisnik je kliknuo na zahtev u tabeli/listi da vidi detalje.
+/// Dispečer je izabrao zahtev u listi; `null` poništava izbor.
 final class DispatchRequestSelected extends DispatchEvent {
   const DispatchRequestSelected(this.id);
 
   final WashRequestId? id;
 }
 
-/// Dispečer dodeljuje perača zahtevu (Pravilo R3).
-final class AcceptRequested extends DispatchEvent {
-  const AcceptRequested(this.id, this.washerId);
+/// Dispečer dodeljuje perača zahtevu; domen proverava da perač nema drugi aktivan posao.
+final class DispatchAcceptRequested extends DispatchEvent {
+  const DispatchAcceptRequested(this.id, this.washerId);
 
   final WashRequestId id;
   final WasherId washerId;
 }
 
 /// Dispečer vraća zahtev u red (Accepted → Submitted).
-final class ReleaseRequested extends DispatchEvent {
-  const ReleaseRequested(this.id);
+final class DispatchReleaseRequested extends DispatchEvent {
+  const DispatchReleaseRequested(this.id);
 
   final WashRequestId id;
 }
@@ -39,7 +39,7 @@ final class DispatchCancelRequested extends DispatchEvent {
   final String reason;
 }
 
-/// Ekran je prikazao obaveštenje (SnackBar), pa ga brišemo iz stanja.
+/// Ekran je prikazao obaveštenje, pa se ono briše iz stanja.
 final class DispatchNoticeAcknowledged extends DispatchEvent {
   const DispatchNoticeAcknowledged();
 }

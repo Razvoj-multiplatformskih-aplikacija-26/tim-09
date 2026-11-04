@@ -21,6 +21,9 @@ final class DispatchFailure extends DispatchState {
 
   @override
   List<Object?> get props => [cause];
+
+  @override
+  String toString() => 'DispatchFailure($cause)';
 }
 
 final class DispatchEmpty extends DispatchState {
@@ -35,10 +38,23 @@ final class DispatchLoaded extends DispatchState {
   final WashRequestId? busyId;
   final DispatchNotice? notice;
 
-  WashRequest? get selected => requests.where((r) => r.id == selectedId).firstOrNull;
+  WashRequest? get selected => find(selectedId);
+
+  WashRequest? find(WashRequestId? id) => requests.where((r) => r.id == id).firstOrNull;
+
+  bool isBusy(WashRequest request) => busyId == request.id;
 
   @override
   List<Object?> get props => [requests, selectedId, busyId, notice];
+
+  @override
+  String toString() => [
+    'DispatchLoaded(${requests.length} requests',
+    if (selectedId case final id?) ', selected ${id.value}',
+    if (busyId case final id?) ', busy ${id.value}',
+    if (notice case final notice?) ', ${notice.runtimeType}',
+    ')',
+  ].join();
 
   DispatchLoaded copyWith({
     List<WashRequest>? requests,
@@ -58,7 +74,7 @@ final class DispatchLoaded extends DispatchState {
   }
 }
 
-/// Jednokratne poruke nakon akcija osoblja (uspeh, odbijanje od strane domena, greška).
+/// Jednokratna poruka posle radnje; ekran je prikaže i pošalje [DispatchNoticeAcknowledged].
 sealed class DispatchNotice extends Equatable {
   const DispatchNotice();
 
@@ -91,15 +107,6 @@ final class RequestCancelledByStaff extends DispatchNotice {
 
   @override
   List<Object?> get props => [request];
-}
-
-final class DispatchActionSuccess extends DispatchNotice {
-  const DispatchActionSuccess(this.message);
-
-  final String message;
-
-  @override
-  List<Object?> get props => [message];
 }
 
 final class DispatchActionRejected extends DispatchNotice {

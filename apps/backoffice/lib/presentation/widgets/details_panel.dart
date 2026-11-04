@@ -51,7 +51,7 @@ class DetailsPanel extends StatelessWidget {
                 OutlinedButton.icon(
                   icon: const Icon(Icons.undo),
                   label: const Text('Vrati u red'),
-                  onPressed: () => context.read<DispatchBloc>().add(ReleaseRequested(request.id)),
+                  onPressed: () => context.read<DispatchBloc>().add(DispatchReleaseRequested(request.id)),
                 ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.cancel),
@@ -83,7 +83,7 @@ class DetailsPanel extends StatelessWidget {
       ),
     );
     if (washer == null || !context.mounted) return;
-    context.read<DispatchBloc>().add(AcceptRequested(request.id, washer));
+    context.read<DispatchBloc>().add(DispatchAcceptRequested(request.id, washer));
   }
 
   Future<void> _confirmAndCancel(BuildContext context, WashRequestId id) async {
