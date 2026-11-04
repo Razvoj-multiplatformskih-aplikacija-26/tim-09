@@ -44,6 +44,9 @@ final class DispatchLoaded extends DispatchState {
 
   bool isBusy(WashRequest request) => busyId == request.id;
 
+  /// Pravilo o jednom aktivnom poslu živi u domenu; ovde ga ekran samo pita, da zauzetog perača ne nudi.
+  bool isWasherBusy(WasherId washer) => washerHasActiveJob(washer, requests);
+
   @override
   List<Object?> get props => [requests, selectedId, busyId, notice];
 
