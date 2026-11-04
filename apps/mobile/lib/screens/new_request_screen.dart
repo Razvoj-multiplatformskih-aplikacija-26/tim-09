@@ -77,7 +77,8 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
   }
 
   void _onFormState(BuildContext context, WashRequestFormState state) {
-    final messenger = ScaffoldMessenger.of(context);
+    // Nova poruka zamenjuje staru, da ne čeka u redu dok prethodna ne istekne.
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
     switch (state) {
       case WashRequestFormDone():
         context.read<MyRequestsBloc>().add(const MyRequestsRequested());
