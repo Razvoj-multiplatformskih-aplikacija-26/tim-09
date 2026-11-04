@@ -1,4 +1,5 @@
 import 'package:domain/domain.dart';
+
 import 'ports/wash_request_repository.dart';
 
 final class AcceptRequest {
@@ -15,9 +16,9 @@ final class AcceptRequest {
     final request = await requests.find(id);
     if (request == null) return const Failure(NotFound());
 
-    // Povlačimo sve zahteve da bi domensko pravilo R3 moglo da proveri da li je perač zauzet
+    // Pravilo o jednom aktivnom poslu gleda sve zahteve. Ovo je provera na klijentu;
+    // konačno odlučuje server, jer dva dispečera mogu istovremeno da dodele istog perača.
     final all = await requests.allRequests();
-
     final result = acceptRequest(request, washer: washer, by: by, now: now, all: all);
     return switch (result) {
       Failure(:final error) => Failure(error),

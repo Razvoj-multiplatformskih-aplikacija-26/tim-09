@@ -9,7 +9,7 @@ void main() {
       final statuses = <WashStatus>[
         const Submitted(),
         accepted(),
-        InProgress(arrivedAt: now),
+        InProgress(washerId: const WasherId('w-1'), arrivedAt: now),
         Completed(finishedAt: now),
         Cancelled(reason: '', cancelledBy: client.id, at: now),
       ];
@@ -46,7 +46,10 @@ void main() {
 
     test('tuđi zahtev ili zahtev u toku klijent ne može da otkaže', () {
       expect(cancelRequest(requestAt(now), by: otherClient, now: now).errorOrNull, isA<NotAllowed>());
-      final running = requestAt(now, status: InProgress(arrivedAt: now));
+      final running = requestAt(
+        now,
+        status: InProgress(washerId: const WasherId('w-1'), arrivedAt: now),
+      );
       expect(cancelRequest(running, by: client, now: now).errorOrNull, isA<NotAllowed>());
     });
 
@@ -61,7 +64,10 @@ void main() {
       final requests = [
         requestAt(now),
         requestAt(now, status: accepted()),
-        requestAt(now, status: InProgress(arrivedAt: now)),
+        requestAt(
+          now,
+          status: InProgress(washerId: const WasherId('w-1'), arrivedAt: now),
+        ),
       ];
       expect(canSubmit(client.id, requests), isTrue);
     });
@@ -74,6 +80,65 @@ void main() {
     test('tuđi zahtevi se ne broje', () {
       final requests = [for (var i = 0; i < 3; i++) requestAt(now, clientId: otherClient.id)];
       expect(canSubmit(client.id, requests), isTrue);
+    });
+  });
+
+  group('R3 · perač ima najviše jedan aktivan posao', () {
+    const washer = WasherId('w-1');
+    const otherWasher = WasherId('w-2');
+
+    test('slobodan perač dobija prijavljen zahtev', () {
+      final result = acceptRequest(requestAt(now), washer: washer, by: dispatcher, now: now, all: []);
+      expect(result.valueOrNull?.status, Accepted(washerId: washer, acceptedBy: dispatcher.id, at: now));
+    });
+
+    test('perač sa prihvaćenim ili započetim poslom je zauzet', () {
+      for (final status in [accepted(), inProgress()]) {
+        final all = [requestAt(now, status: status)];
+        expect(
+          acceptRequest(requestAt(now), washer: washer, by: dispatcher, now: now, all: all).errorOrNull,
+          isA<WasherBusy>(),
+        );
+      }
+    });
+
+    test('završeni i otkazani poslovi i poslovi drugih perača se ne broje', () {
+      final all = [
+        requestAt(now, status: Completed(finishedAt: now)),
+        requestAt(
+          now,
+          status: Cancelled(reason: '', cancelledBy: dispatcher.id, at: now),
+        ),
+        requestAt(
+          now,
+          status: Accepted(washerId: otherWasher, acceptedBy: dispatcher.id, at: now),
+        ),
+      ];
+      expect(acceptRequest(requestAt(now), washer: washer, by: dispatcher, now: now, all: all).isSuccess, isTrue);
+    });
+
+    test('klijent ne dodeljuje perača, a prihvaćen zahtev se ne dodeljuje ponovo', () {
+      expect(
+        acceptRequest(requestAt(now), washer: washer, by: client, now: now, all: []).errorOrNull,
+        isA<NotAllowed>(),
+      );
+      final taken = requestAt(now, status: accepted());
+      expect(
+        acceptRequest(taken, washer: otherWasher, by: dispatcher, now: now, all: []).errorOrNull,
+        isA<InvalidTransition>(),
+      );
+    });
+  });
+
+  group('vraćanje u red', () {
+    test('prihvaćen zahtev se vraća u Prijavljen', () {
+      final result = releaseRequest(requestAt(now, status: accepted()), by: dispatcher);
+      expect(result.valueOrNull?.status, const Submitted());
+    });
+
+    test('samo prihvaćen zahtev, i samo dispečer', () {
+      expect(releaseRequest(requestAt(now), by: dispatcher).errorOrNull, isA<InvalidTransition>());
+      expect(releaseRequest(requestAt(now, status: accepted()), by: client).errorOrNull, isA<NotAllowed>());
     });
   });
 }

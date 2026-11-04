@@ -65,7 +65,7 @@ List<WashRequest> seedRequests(DateTime now) {
       tier: ServiceTier.economy,
       address: 'Knez Mihailova 6, Beograd',
       note: 'Garaža, nivo -2, mesto 41.',
-      status: InProgress(arrivedAt: runningStart.add(const Duration(minutes: 5))),
+      status: InProgress(washerId: const WasherId('w-2'), arrivedAt: runningStart.add(const Duration(minutes: 5))),
     ),
     // Završeni.
     request(

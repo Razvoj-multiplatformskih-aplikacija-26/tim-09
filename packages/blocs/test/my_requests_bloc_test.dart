@@ -34,7 +34,11 @@ void main() {
     start: now.add(const Duration(minutes: 30)),
     status: Accepted(washerId: const WasherId('w-1'), acceptedBy: const UserId('u-d'), at: now),
   );
-  final done = request('wr-3', start: now.subtract(const Duration(days: 1)), status: Completed(finishedAt: now));
+  final done = request(
+    'wr-3',
+    start: now.subtract(const Duration(days: 1)),
+    status: Completed(finishedAt: now),
+  );
 
   blocTest<MyRequestsBloc, MyRequestsState>(
     'učitavanje pa podaci; Bloc iz domena zna šta sme da se otkaže',
@@ -80,7 +84,12 @@ void main() {
       );
       return [
         MyRequestsLoaded(active: [upcoming], past: const [], cancellable: {upcoming.id}, cancellingId: upcoming.id),
-        MyRequestsLoaded(active: const [], past: [cancelled], cancellable: const {}, notice: RequestCancelled(cancelled)),
+        MyRequestsLoaded(
+          active: const [],
+          past: [cancelled],
+          cancellable: const {},
+          notice: RequestCancelled(cancelled),
+        ),
       ];
     },
   );

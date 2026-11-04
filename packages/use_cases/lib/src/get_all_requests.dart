@@ -1,4 +1,5 @@
 import 'package:domain/domain.dart';
+
 import 'ports/wash_request_repository.dart';
 
 final class GetAllRequests {
@@ -6,7 +7,5 @@ final class GetAllRequests {
 
   final WashRequestRepository requests;
 
-  Future<List<WashRequest>> call() async {
-    return await requests.allRequests();
-  }
+  Future<List<WashRequest>> call() => requests.allRequests();
 }

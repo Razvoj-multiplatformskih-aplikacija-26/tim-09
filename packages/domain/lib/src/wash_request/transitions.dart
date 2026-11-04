@@ -34,12 +34,12 @@ Result<WashRequest> cancelRequest(WashRequest request, {required User by, requir
 
 /// R3 · Perač ima najviše jedan aktivan posao (prihvaćen ili u toku).
 bool washerHasActiveJob(WasherId washer, List<WashRequest> requests) => requests.any(
-      (r) => switch (r.status) {
-        Accepted(:final washerId) => washerId == washer,
-        InProgress() => false, 
-        _ => false,
-      },
-    );
+  (r) => switch (r.status) {
+    Accepted(:final washerId) || InProgress(:final washerId) => washerId == washer,
+    Submitted() || Completed() || Cancelled() => false,
+  },
+);
+
 /// Dispečer dodeljuje perača zahtevu uz primenu pravila R3.
 Result<WashRequest> acceptRequest(
   WashRequest request, {
@@ -58,10 +58,7 @@ Result<WashRequest> acceptRequest(
 }
 
 /// Dispečer vraća prihvaćen zahtev nazad u red (Accepted → Submitted).
-Result<WashRequest> releaseRequest(
-  WashRequest request, {
-  required User by,
-}) {
+Result<WashRequest> releaseRequest(WashRequest request, {required User by}) {
   if (!by.role.isStaff) return const Failure(NotAllowed());
   const next = Submitted();
   if (!canTransition(request.status, next)) {

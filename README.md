@@ -28,7 +28,7 @@ Projekat iz predmeta Razvoj multiplatformskih aplikacija.
 | Deo | Korisnici | Tehnologija | Platforme |
 | --- | --- | --- | --- |
 | Mobilna aplikacija | klijenti, perači | Flutter | Android |
-| Backoffice | administratori | Flutter | Windows, veb |
+| Backoffice | administratori | Flutter | Windows, macOS, veb |
 | Javni veb | svi posetioci | Jaspr | pregledač |
 | Server | ostali delovi sistema | Relic, PostgreSQL | Linux |
 | Domenski paket | svi delovi sistema | Dart | sve |

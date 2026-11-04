@@ -21,6 +21,9 @@ final class DispatchFailure extends DispatchState {
 
   @override
   List<Object?> get props => [cause];
+
+  @override
+  String toString() => 'DispatchFailure($cause)';
 }
 
 final class DispatchEmpty extends DispatchState {
@@ -28,20 +31,33 @@ final class DispatchEmpty extends DispatchState {
 }
 
 final class DispatchLoaded extends DispatchState {
-  const DispatchLoaded({
-    required this.requests,
-    this.selectedId,
-    this.busyId,
-    this.notice,
-  });
+  const DispatchLoaded({required this.requests, this.selectedId, this.busyId, this.notice});
 
   final List<WashRequest> requests;
   final WashRequestId? selectedId;
   final WashRequestId? busyId;
   final DispatchNotice? notice;
 
+  WashRequest? get selected => find(selectedId);
+
+  WashRequest? find(WashRequestId? id) => requests.where((r) => r.id == id).firstOrNull;
+
+  bool isBusy(WashRequest request) => busyId == request.id;
+
+  /// Pravilo o jednom aktivnom poslu živi u domenu; ovde ga ekran samo pita, da zauzetog perača ne nudi.
+  bool isWasherBusy(WasherId washer) => washerHasActiveJob(washer, requests);
+
   @override
   List<Object?> get props => [requests, selectedId, busyId, notice];
+
+  @override
+  String toString() => [
+    'DispatchLoaded(${requests.length} requests',
+    if (selectedId case final id?) ', selected ${id.value}',
+    if (busyId case final id?) ', busy ${id.value}',
+    if (notice case final notice?) ', ${notice.runtimeType}',
+    ')',
+  ].join();
 
   DispatchLoaded copyWith({
     List<WashRequest>? requests,
@@ -61,7 +77,7 @@ final class DispatchLoaded extends DispatchState {
   }
 }
 
-/// Jednokratne poruke nakon akcija osoblja (uspeh, odbijanje od strane domena, greška).
+/// Jednokratna poruka posle radnje; ekran je prikaže i pošalje [DispatchNoticeAcknowledged].
 sealed class DispatchNotice extends Equatable {
   const DispatchNotice();
 
@@ -69,13 +85,31 @@ sealed class DispatchNotice extends Equatable {
   List<Object?> get props => const [];
 }
 
-final class DispatchActionSuccess extends DispatchNotice {
-  const DispatchActionSuccess(this.message);
+final class RequestAssigned extends DispatchNotice {
+  const RequestAssigned(this.request);
 
-  final String message;
+  final WashRequest request;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [request];
+}
+
+final class RequestReleased extends DispatchNotice {
+  const RequestReleased(this.request);
+
+  final WashRequest request;
+
+  @override
+  List<Object?> get props => [request];
+}
+
+final class RequestCancelledByStaff extends DispatchNotice {
+  const RequestCancelledByStaff(this.request);
+
+  final WashRequest request;
+
+  @override
+  List<Object?> get props => [request];
 }
 
 final class DispatchActionRejected extends DispatchNotice {
