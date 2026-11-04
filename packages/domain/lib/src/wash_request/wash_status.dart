@@ -49,7 +49,6 @@ final class Accepted extends WashStatus {
 }
 
 /// U toku: perač je stigao i pere vozilo.
-/// U toku: perač je stigao i pere vozilo.
 @immutable
 final class InProgress extends WashStatus {
   const InProgress({required this.washerId, required this.arrivedAt});
