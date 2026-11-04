@@ -1,17 +1,27 @@
-# backoffice
+# Backoffice
 
-A new Flutter project.
+Dispečerska tabla sistema CarWash & Go, za veliki ekran (Windows i veb). Dispečer vidi sve zahteve podeljene na red čekanja, aktivne i prethodne, dodeljuje perača, vraća prihvaćen zahtev u red i otkazuje zahteve.
 
-## Getting Started
+Perač koji već ima prihvaćen posao ili posao u toku ne može da dobije novi. Pravilo je u domenskom paketu, isto kao za mobilnu aplikaciju i server.
 
-This project is a starting point for a Flutter application.
+U KT1 aplikacija radi sa lažnim repozitorijumom u memoriji (`lib/data/`) i kao jedan, unapred prijavljen dispečer. Implementacije se biraju samo u `lib/dependencies.dart`.
 
-A few resources to get you started if this is your first Flutter project:
+## Pokretanje
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```sh
+cd apps/backoffice
+flutter run -d chrome     # veb
+flutter run -d windows    # Windows, samo na Windows računaru
+flutter test
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Prečice
+
+| Taster | Radnja |
+| --- | --- |
+| ↑ / ↓ | prethodni / sledeći zahtev |
+| A | dodela perača izabranom prijavljenom zahtevu |
+| Esc | poništava izbor |
+| F5 | osvežava listu |
+
+Na prozoru užem od 900 px detalji se otvaraju na posebnom ekranu. U debug izdanju meni sa epruvetom simulira grešku servera i prazan odgovor.
