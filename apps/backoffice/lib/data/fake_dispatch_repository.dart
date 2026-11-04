@@ -3,23 +3,26 @@ import 'package:use_cases/use_cases.dart';
 
 import 'seed.dart';
 
-class FakeDispatchRepository implements WashRequestRepository {
-  FakeDispatchRepository({required this.clock, this.latency}) : _requests = createInitialRequests(clock);
+/// Lažna implementacija porta: svi zahtevi u memoriji, sa kašnjenjem kao da idu preko mreže.
+final class FakeDispatchRepository implements WashRequestRepository {
+  FakeDispatchRepository({required this.clock, this.latency = const Duration(milliseconds: 700)})
+    : _requests = seedRequests(clock.now());
 
   final Clock clock;
-  final Duration? latency;
+  final Duration latency;
   final List<WashRequest> _requests;
 
+  /// Koliko sledećih zahteva baca grešku („Simuliraj grešku“).
   int failingRequests = 0;
+
+  /// Koliko sledećih odgovora je prazno („Simuliraj prazan odgovor“).
   int emptyResponses = 0;
 
   Future<void> _roundTrip() async {
-    if (latency != null) {
-      await Future<void>.delayed(latency!);
-    }
+    await Future<void>.delayed(latency);
     if (failingRequests > 0) {
       failingRequests--;
-      throw const RepositoryException('Simulirana greška servera.');
+      throw const RepositoryException('Simulated outage');
     }
   }
 
@@ -30,7 +33,7 @@ class FakeDispatchRepository implements WashRequestRepository {
       emptyResponses--;
       return [];
     }
-    return List.unmodifiable(_requests);
+    return List.of(_requests);
   }
 
   @override
@@ -48,17 +51,10 @@ class FakeDispatchRepository implements WashRequestRepository {
   @override
   Future<WashRequest> save(WashRequest request) async {
     await _roundTrip();
-    final index = _requests.indexWhere((r) => r.id == request.id);
-    if (index >= 0) {
-      _requests[index] = request;
-    } else {
-      _requests.add(request);
-    }
+    _requests[_requests.indexWhere((r) => r.id == request.id)] = request;
     return request;
   }
 
   @override
-  Future<WashRequest> create(WashRequestDraft draft) async {
-    throw UnimplementedError('Backoffice ne kreira nove zahteve.');
-  }
+  Future<WashRequest> create(WashRequestDraft draft) => throw UnsupportedError('Backoffice ne pravi nove zahteve.');
 }
