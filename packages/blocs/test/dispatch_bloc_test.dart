@@ -2,68 +2,98 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:blocs/blocs.dart';
 import 'package:domain/domain.dart';
 import 'package:test/test.dart';
+import 'package:use_cases/testing.dart';
 import 'package:use_cases/use_cases.dart';
 
 import 'fake_wash_requests.dart';
 
-final now = DateTime(2026, 10, 26, 9);
-const dispatcher = User(id: UserId('u-dispatcher'), username: 'dispečer', role: Role.dispatcher);
+final now = businessDate(2026, 10, 26, 9);
+const dispatcher = User(id: UserId('u-dispatcher'), username: 'dispecer', role: Role.dispatcher);
 const client = User(id: UserId('u-client'), username: 'marko', role: Role.client);
 const washer = WasherId('w-1');
 const otherWasher = WasherId('w-2');
 
-WashRequest request(String id, {WashStatus status = const Submitted()}) => WashRequest(
+WashRequest request(String id, {WashStatus status = const Submitted(), int hour = 0}) => WashRequest(
   id: WashRequestId(id),
   clientId: client.id,
   vehicle: Vehicle(type: VehicleType.sedan, plate: LicensePlate.parse('BG 123-AB').valueOrNull!),
   tier: ServiceTier.economy,
   address: Address.parse('Knez Mihailova 6').valueOrNull!,
-  slot: WashSlot.existing(now.add(const Duration(days: 1)), const Duration(minutes: 45)),
+  slot: WashSlot.existing(now.add(Duration(days: 1, hours: hour)), const Duration(minutes: 45)),
   status: status,
   createdAt: now,
 );
 
-DispatchBloc blocWith(FakeWashRequests repository) => DispatchBloc(
+List<Washer> washersFor(List<WashRequest> requests) => [
+  for (final w in washerProfiles) Washer(id: w.id, name: w.name, hasActiveJob: washerHasActiveJob(w.id, requests)),
+];
+
+DispatchLoaded loaded(
+  List<WashRequest> requests, {
+  List<WashRequest>? all,
+  WashRequestId? selectedId,
+  WashRequestId? busyId,
+  DispatchNotice? notice,
+  RequestStatusFilter? filter,
+}) => DispatchLoaded(
+  page: pageOf(requests, limit: 50),
+  washers: washersFor(all ?? requests),
+  filter: filter,
+  selectedId: selectedId,
+  busyId: busyId,
+  notice: notice,
+);
+
+DispatchBloc blocWith(InMemoryWashRequests repository) => DispatchBloc(
   getAllRequests: GetAllRequests(requests: repository),
+  getWashers: GetWashers(washers: repository),
   acceptRequest: AcceptRequest(requests: repository),
   releaseRequest: ReleaseRequest(requests: repository),
-  cancelRequest: CancelRequest(requests: repository, clock: FixedClock(now)),
-  clock: FixedClock(now),
-  dispatcher: dispatcher,
+  cancelRequest: CancelRequest(requests: repository),
 );
+
+InMemoryWashRequests repo(List<WashRequest> requests) => fakeRequests(dispatcher, now, requests);
 
 void main() {
   final pending = request('wr-1');
   final taken = request(
     'wr-2',
     status: Accepted(washerId: washer, acceptedBy: dispatcher.id, at: now),
+    hour: 1,
   );
   final running = request(
     'wr-3',
     status: InProgress(washerId: washer, arrivedAt: now),
+    hour: 2,
   );
 
   group('učitavanje', () {
     blocTest<DispatchBloc, DispatchState>(
-      'svi zahtevi → Loaded',
-      build: () => blocWith(FakeWashRequests([pending, taken])),
+      'stranica zahteva i perači sa servera → Loaded',
+      build: () => blocWith(repo([pending, taken])),
       act: (bloc) => bloc.add(const DispatchRequested()),
       expect: () => [
         const DispatchLoading(),
-        DispatchLoaded(requests: [pending, taken]),
+        loaded([pending, taken]),
       ],
+      verify: (bloc) {
+        final state = bloc.state as DispatchLoaded;
+        expect(state.isWasherBusy(washer), isTrue);
+        expect(state.isWasherBusy(otherWasher), isFalse);
+        expect(state.washerName(washer), 'Nikola Petrović');
+      },
     );
 
     blocTest<DispatchBloc, DispatchState>(
       'bez zahteva → Empty',
-      build: () => blocWith(FakeWashRequests()),
+      build: () => blocWith(repo([])),
       act: (bloc) => bloc.add(const DispatchRequested()),
       expect: () => [const DispatchLoading(), const DispatchEmpty()],
     );
 
     blocTest<DispatchBloc, DispatchState>(
-      'greška repozitorijuma → Failure, „Pokušaj ponovo“ → podaci',
-      build: () => blocWith(FakeWashRequests([pending])..failingRequests = 1),
+      'greška → Failure, „Pokušaj ponovo“ → podaci',
+      build: () => blocWith(repo([pending])..failingRequests = 1),
       act: (bloc) async {
         bloc.add(const DispatchRequested());
         await Future<void>.delayed(Duration.zero);
@@ -73,110 +103,149 @@ void main() {
         const DispatchLoading(),
         isA<DispatchFailure>(),
         const DispatchLoading(),
-        DispatchLoaded(requests: [pending]),
+        loaded([pending]),
       ],
+    );
+
+    blocTest<DispatchBloc, DispatchState>(
+      'filter stanja ide serveru i vraća na prvu stranicu',
+      build: () => blocWith(repo([pending, taken, running])),
+      act: (bloc) => bloc.add(const DispatchFilterChanged(RequestStatusFilter.accepted)),
+      expect: () => [
+        const DispatchLoading(filter: RequestStatusFilter.accepted),
+        loaded([taken], all: [pending, taken, running], filter: RequestStatusFilter.accepted),
+      ],
+    );
+
+    blocTest<DispatchBloc, DispatchState>(
+      'dostupnost perača ne zavisi od trenutne stranice',
+      build: () => blocWith(repo([pending, running])),
+      act: (bloc) => bloc.add(const DispatchFilterChanged(RequestStatusFilter.submitted)),
+      skip: 1,
+      verify: (bloc) {
+        final state = bloc.state as DispatchLoaded;
+        expect(state.requests, [pending]);
+        expect(state.isWasherBusy(washer), isTrue);
+      },
+    );
+
+    blocTest<DispatchBloc, DispatchState>(
+      'stranica van opsega učitava poslednju važeću',
+      build: () =>
+          blocWith(repo([for (var i = 0; i < 60; i++) request('wr-${i.toString().padLeft(2, '0')}', hour: 0)])),
+      act: (bloc) => bloc.add(const DispatchPageRequested(150)),
+      skip: 1,
+      verify: (bloc) {
+        final state = bloc.state as DispatchLoaded;
+        expect((state.page.offset, state.page.total, state.requests.length), (50, 60, 10));
+      },
     );
   });
 
   group('izbor', () {
     blocTest<DispatchBloc, DispatchState>(
       'izbor pa poništavanje',
-      build: () => blocWith(FakeWashRequests([pending])),
-      seed: () => DispatchLoaded(requests: [pending]),
+      build: () => blocWith(repo([pending])),
+      seed: () => loaded([pending]),
       act: (bloc) => bloc
         ..add(DispatchRequestSelected(pending.id))
         ..add(const DispatchRequestSelected(null)),
       expect: () => [
-        DispatchLoaded(requests: [pending], selectedId: pending.id),
-        DispatchLoaded(requests: [pending]),
+        loaded([pending], selectedId: pending.id),
+        loaded([pending]),
       ],
     );
 
     blocTest<DispatchBloc, DispatchState>(
-      'izbor preživljava osvežavanje ako je zahtev i dalje u listi',
-      build: () => blocWith(FakeWashRequests([pending])),
-      seed: () => DispatchLoaded(requests: [pending], selectedId: pending.id),
-      act: (bloc) => bloc.add(const DispatchRequested()),
-      expect: () => [
-        const DispatchLoading(),
-        DispatchLoaded(requests: [pending], selectedId: pending.id),
-      ],
-    );
-
-    blocTest<DispatchBloc, DispatchState>(
-      'izbor nestaje ako zahteva posle osvežavanja više nema',
-      build: () => blocWith(FakeWashRequests([pending])),
-      seed: () => DispatchLoaded(requests: [pending, taken], selectedId: taken.id),
-      act: (bloc) => bloc.add(const DispatchRequested()),
-      expect: () => [
-        const DispatchLoading(),
-        DispatchLoaded(requests: [pending]),
-      ],
-    );
-
-    blocTest<DispatchBloc, DispatchState>(
-      'posle radnje izabrani zahtev ostaje izabran',
-      build: () => blocWith(FakeWashRequests([pending])),
-      seed: () => DispatchLoaded(requests: [pending], selectedId: pending.id),
-      act: (bloc) => bloc.add(DispatchAcceptRequested(pending.id, washer)),
-      skip: 1,
-      expect: () {
-        final assigned = pending.copyWith(
-          status: Accepted(washerId: washer, acceptedBy: dispatcher.id, at: now),
-        );
-        return [
-          DispatchLoaded(requests: [assigned], selectedId: pending.id, notice: RequestAssigned(assigned)),
-        ];
+      'izbor preživljava osvežavanje ako je zahtev i dalje na stranici',
+      build: () => blocWith(repo([pending])),
+      seed: () => loaded([pending]),
+      act: (bloc) async {
+        bloc.add(DispatchRequestSelected(pending.id));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const DispatchRequested());
       },
+      skip: 1,
+      expect: () => [
+        const DispatchLoading(),
+        loaded([pending], selectedId: pending.id),
+      ],
+    );
+
+    blocTest<DispatchBloc, DispatchState>(
+      'izbor nestaje ako zahteva posle filtera više nema',
+      build: () => blocWith(repo([pending, taken])),
+      seed: () => loaded([pending, taken]),
+      act: (bloc) async {
+        bloc.add(DispatchRequestSelected(taken.id));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const DispatchFilterChanged(RequestStatusFilter.submitted));
+      },
+      skip: 2,
+      expect: () => [
+        loaded([pending], all: [pending, taken], filter: RequestStatusFilter.submitted),
+      ],
     );
   });
 
   group('dodela perača', () {
     blocTest<DispatchBloc, DispatchState>(
-      'slobodan perač: zahtev zauzet, pa lista sa prihvaćenim zahtevom i porukom',
-      build: () => blocWith(FakeWashRequests([pending])),
-      seed: () => DispatchLoaded(requests: [pending]),
+      'slobodan perač: zahtev zauzet, pa osveženi podaci i poruka',
+      build: () => blocWith(repo([pending])),
+      seed: () => loaded([pending]),
       act: (bloc) => bloc.add(DispatchAcceptRequested(pending.id, washer)),
       expect: () {
         final assigned = pending.copyWith(
           status: Accepted(washerId: washer, acceptedBy: dispatcher.id, at: now),
         );
         return [
-          DispatchLoaded(requests: [pending], busyId: pending.id),
-          DispatchLoaded(requests: [assigned], notice: RequestAssigned(assigned)),
+          loaded([pending], busyId: pending.id),
+          loaded([assigned], notice: RequestAssigned(assigned)),
         ];
       },
     );
 
     for (final (label, busy) in [('prihvaćen', taken), ('u toku', running)]) {
       blocTest<DispatchBloc, DispatchState>(
-        'perač sa poslom koji je $label → WasherBusy, lista se ne menja',
-        build: () => blocWith(FakeWashRequests([pending, busy])),
-        seed: () => DispatchLoaded(requests: [pending, busy]),
+        'perač sa poslom koji je $label → WasherBusy, razlog i osveženi perači',
+        build: () => blocWith(repo([pending, busy])),
+        seed: () => loaded([pending, busy]),
         act: (bloc) => bloc.add(DispatchAcceptRequested(pending.id, washer)),
         expect: () => [
-          DispatchLoaded(requests: [pending, busy], busyId: pending.id),
-          DispatchLoaded(
-            requests: [pending, busy],
-            notice: const DispatchActionRejected(WasherBusy(washerId: WasherId('w-1'))),
-          ),
+          loaded([pending, busy], busyId: pending.id),
+          loaded([pending, busy], notice: const DispatchActionRejected(WasherBusy(washerId: WasherId('w-1')))),
         ],
       );
     }
 
     blocTest<DispatchBloc, DispatchState>(
-      'drugi perač je slobodan iako je prvi zauzet',
-      build: () => blocWith(FakeWashRequests([pending, running])),
-      seed: () => DispatchLoaded(requests: [pending, running]),
+      'perača je u međuvremenu zauzeo drugi dispečer: razlog ostaje, perači su osveženi',
+      build: () {
+        final repository = repo([pending, request('wr-9', hour: 3)]);
+        repository.replace(
+          request(
+            'wr-9',
+            hour: 3,
+            status: Accepted(washerId: otherWasher, acceptedBy: const UserId('u-x'), at: now),
+          ),
+        );
+        return blocWith(repository);
+      },
+      seed: () => loaded([pending, request('wr-9', hour: 3)]),
       act: (bloc) => bloc.add(DispatchAcceptRequested(pending.id, otherWasher)),
       skip: 1,
-      expect: () => [isA<DispatchLoaded>().having((s) => s.notice, 'notice', isA<RequestAssigned>())],
+      verify: (bloc) {
+        final state = bloc.state as DispatchLoaded;
+        expect(state.notice, const DispatchActionRejected(WasherBusy(washerId: otherWasher)));
+        expect(state.isWasherBusy(otherWasher), isTrue);
+        expect(state.busyId, isNull);
+      },
     );
 
     blocTest<DispatchBloc, DispatchState>(
       'već prihvaćen zahtev se ne dodeljuje ponovo → InvalidTransition',
-      build: () => blocWith(FakeWashRequests([taken])),
-      seed: () => DispatchLoaded(requests: [taken]),
+      build: () => blocWith(repo([taken])),
+      seed: () => loaded([taken]),
       act: (bloc) => bloc.add(DispatchAcceptRequested(taken.id, otherWasher)),
       skip: 1,
       expect: () => [
@@ -190,8 +259,8 @@ void main() {
 
     blocTest<DispatchBloc, DispatchState>(
       'dok radnja traje, drugi klik se ignoriše',
-      build: () => blocWith(FakeWashRequests([pending])),
-      seed: () => DispatchLoaded(requests: [pending]),
+      build: () => blocWith(repo([pending])),
+      seed: () => loaded([pending]),
       act: (bloc) => bloc
         ..add(DispatchAcceptRequested(pending.id, washer))
         ..add(DispatchAcceptRequested(pending.id, otherWasher)),
@@ -200,19 +269,19 @@ void main() {
           status: Accepted(washerId: washer, acceptedBy: dispatcher.id, at: now),
         );
         return [
-          DispatchLoaded(requests: [pending], busyId: pending.id),
-          DispatchLoaded(requests: [assigned], notice: RequestAssigned(assigned)),
+          loaded([pending], busyId: pending.id),
+          loaded([assigned], notice: RequestAssigned(assigned)),
         ];
       },
     );
 
     blocTest<DispatchBloc, DispatchState>(
-      'greška repozitorijuma pri radnji → DispatchActionFailed, lista ostaje',
-      build: () => blocWith(FakeWashRequests([pending])..failingRequests = 1),
-      seed: () => DispatchLoaded(requests: [pending]),
+      'prekid mreže pri radnji → DispatchActionFailed, bez ponavljanja i bez busy indikatora',
+      build: () => blocWith(repo([pending])..failingRequests = 1),
+      seed: () => loaded([pending]),
       act: (bloc) => bloc.add(DispatchAcceptRequested(pending.id, washer)),
       expect: () => [
-        DispatchLoaded(requests: [pending], busyId: pending.id),
+        loaded([pending], busyId: pending.id),
         isA<DispatchLoaded>()
             .having((s) => s.requests, 'requests', [pending])
             .having((s) => s.busyId, 'busyId', isNull)
@@ -224,37 +293,22 @@ void main() {
   group('vraćanje u red i otkazivanje', () {
     blocTest<DispatchBloc, DispatchState>(
       'prihvaćen zahtev se vraća u Prijavljen',
-      build: () => blocWith(FakeWashRequests([taken])),
-      seed: () => DispatchLoaded(requests: [taken]),
+      build: () => blocWith(repo([taken])),
+      seed: () => loaded([taken]),
       act: (bloc) => bloc.add(DispatchReleaseRequested(taken.id)),
       skip: 1,
       expect: () {
         final released = taken.copyWith(status: const Submitted());
         return [
-          DispatchLoaded(requests: [released], notice: RequestReleased(released)),
+          loaded([released], notice: RequestReleased(released)),
         ];
       },
     );
 
     blocTest<DispatchBloc, DispatchState>(
-      'prijavljen zahtev ne može da se vrati u red → InvalidTransition',
-      build: () => blocWith(FakeWashRequests([pending])),
-      seed: () => DispatchLoaded(requests: [pending]),
-      act: (bloc) => bloc.add(DispatchReleaseRequested(pending.id)),
-      skip: 1,
-      expect: () => [
-        isA<DispatchLoaded>().having(
-          (s) => s.notice,
-          'notice',
-          isA<DispatchActionRejected>().having((n) => n.error, 'error', isA<InvalidTransition>()),
-        ),
-      ],
-    );
-
-    blocTest<DispatchBloc, DispatchState>(
       'dispečer otkazuje i zahtev u toku; razlog se čuva',
-      build: () => blocWith(FakeWashRequests([running])),
-      seed: () => DispatchLoaded(requests: [running]),
+      build: () => blocWith(repo([running])),
+      seed: () => loaded([running]),
       act: (bloc) => bloc.add(DispatchCancelRequested(running.id, reason: 'Otkazao dispečer.')),
       skip: 1,
       expect: () {
@@ -262,7 +316,7 @@ void main() {
           status: Cancelled(reason: 'Otkazao dispečer.', cancelledBy: dispatcher.id, at: now),
         );
         return [
-          DispatchLoaded(requests: [cancelled], notice: RequestCancelledByStaff(cancelled)),
+          loaded([cancelled], notice: RequestCancelledByStaff(cancelled)),
         ];
       },
     );
@@ -270,11 +324,11 @@ void main() {
 
   blocTest<DispatchBloc, DispatchState>(
     'potvrđena poruka se briše iz stanja',
-    build: () => blocWith(FakeWashRequests([pending])),
-    seed: () => DispatchLoaded(requests: [pending], notice: RequestAssigned(pending)),
+    build: () => blocWith(repo([pending])),
+    seed: () => loaded([pending], notice: RequestAssigned(pending)),
     act: (bloc) => bloc.add(const DispatchNoticeAcknowledged()),
     expect: () => [
-      DispatchLoaded(requests: [pending]),
+      loaded([pending]),
     ],
   );
 }

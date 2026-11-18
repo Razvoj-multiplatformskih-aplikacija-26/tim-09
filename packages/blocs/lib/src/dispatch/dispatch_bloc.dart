@@ -6,17 +6,18 @@ import 'package:use_cases/use_cases.dart';
 part 'dispatch_event.dart';
 part 'dispatch_state.dart';
 
-/// Dispečerska tabla: svi zahtevi, izbor jednog i radnje osoblja nad njim.
+/// Dispečerska tabla: stranica zahteva, perači, izbor jednog zahteva i radnje osoblja nad njim.
 final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
   DispatchBloc({
     required this.getAllRequests,
+    required this.getWashers,
     required this.acceptRequest,
     required this.releaseRequest,
     required this.cancelRequest,
-    required this.clock,
-    required this.dispatcher,
   }) : super(const DispatchLoading()) {
     on<DispatchRequested>(_onRequested);
+    on<DispatchPageRequested>(_onPageRequested);
+    on<DispatchFilterChanged>(_onFilterChanged);
     on<DispatchRequestSelected>(_onSelected);
     on<DispatchAcceptRequested>(_onAcceptRequested);
     on<DispatchReleaseRequested>(_onReleaseRequested);
@@ -25,68 +26,90 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
   }
 
   final GetAllRequests getAllRequests;
+  final GetWashers getWashers;
   final AcceptRequest acceptRequest;
   final ReleaseRequest releaseRequest;
   final CancelRequest cancelRequest;
-  final Clock clock;
-  final User dispatcher;
+
+  int _offset = 0;
+  RequestStatusFilter? _filter;
+  WashRequestId? _selectedId;
 
   Future<void> _onRequested(DispatchRequested event, Emitter<DispatchState> emit) async {
-    final selectedId = switch (state) {
-      DispatchLoaded(:final selectedId) => selectedId,
-      _ => null,
-    };
-    emit(const DispatchLoading());
-    await _reload(emit, selectedId: selectedId);
+    if (state case DispatchLoaded(busyId: _?)) return;
+    emit(DispatchLoading(filter: _filter));
+    await _reload(emit);
+  }
+
+  Future<void> _onPageRequested(DispatchPageRequested event, Emitter<DispatchState> emit) async {
+    if (state case DispatchLoaded(busyId: _?)) return;
+    _offset = event.offset < 0 ? 0 : event.offset;
+    emit(DispatchLoading(filter: _filter));
+    await _reload(emit);
+  }
+
+  Future<void> _onFilterChanged(DispatchFilterChanged event, Emitter<DispatchState> emit) async {
+    if (state case DispatchLoaded(busyId: _?)) return;
+    _filter = event.filter;
+    _offset = 0;
+    emit(DispatchLoading(filter: _filter));
+    await _reload(emit);
   }
 
   void _onSelected(DispatchRequestSelected event, Emitter<DispatchState> emit) {
     final current = state;
     if (current is DispatchLoaded) {
+      _selectedId = event.id;
       emit(current.copyWith(selectedId: event.id, clearSelected: event.id == null));
     }
   }
 
   void _onNoticeAcknowledged(DispatchNoticeAcknowledged event, Emitter<DispatchState> emit) {
-    final current = state;
-    if (current is DispatchLoaded && current.notice != null) {
-      emit(current.copyWith(clearNotice: true));
+    switch (state) {
+      case final DispatchLoaded loaded when loaded.notice != null:
+        emit(loaded.copyWith(clearNotice: true));
+      case DispatchEmpty(:final filter, notice: _?):
+        emit(DispatchEmpty(filter: filter));
+      default:
+        break;
     }
   }
 
-  Future<void> _onAcceptRequested(DispatchAcceptRequested event, Emitter<DispatchState> emit) => _act(
-    emit,
-    event.id,
-    () => acceptRequest(id: event.id, washer: event.washerId, by: dispatcher, now: clock.now()),
-    RequestAssigned.new,
-  );
+  Future<void> _onAcceptRequested(DispatchAcceptRequested event, Emitter<DispatchState> emit) =>
+      _act(emit, event.id, () => acceptRequest(id: event.id, washer: event.washerId), RequestAssigned.new);
 
   Future<void> _onReleaseRequested(DispatchReleaseRequested event, Emitter<DispatchState> emit) =>
-      _act(emit, event.id, () => releaseRequest(id: event.id, by: dispatcher), RequestReleased.new);
+      _act(emit, event.id, () => releaseRequest(id: event.id), RequestReleased.new);
 
-  Future<void> _onCancelRequested(DispatchCancelRequested event, Emitter<DispatchState> emit) => _act(
-    emit,
-    event.id,
-    () => cancelRequest(id: event.id, by: dispatcher, reason: event.reason),
-    RequestCancelledByStaff.new,
-  );
+  Future<void> _onCancelRequested(DispatchCancelRequested event, Emitter<DispatchState> emit) =>
+      _act(emit, event.id, () => cancelRequest(id: event.id, reason: event.reason), RequestCancelledByStaff.new);
 
-  /// Izbor preživljava osvežavanje samo ako je zahtev i dalje u listi.
-  Future<void> _reload(Emitter<DispatchState> emit, {WashRequestId? selectedId, DispatchNotice? notice}) async {
+  /// Izbor preživljava osvežavanje samo ako je zahtev i dalje na stranici.
+  Future<void> _reload(Emitter<DispatchState> emit, {DispatchNotice? notice, DispatchLoaded? previous}) async {
     try {
-      final requests = await getAllRequests();
-      if (requests.isEmpty) {
-        emit(const DispatchEmpty());
+      var page = await getAllRequests(offset: _offset, status: _filter);
+      if (page.isPastEnd) {
+        _offset = page.lastOffset;
+        page = await getAllRequests(offset: _offset, status: _filter);
+      }
+      final washers = await getWashers();
+      if (page.isEmpty) {
+        emit(DispatchEmpty(filter: _filter, notice: notice));
         return;
       }
-      final stillThere = requests.any((r) => r.id == selectedId);
-      emit(DispatchLoaded(requests: requests, selectedId: stillThere ? selectedId : null, notice: notice));
+      final stillThere = page.items.any((r) => r.id == _selectedId);
+      if (!stillThere) _selectedId = null;
+      emit(DispatchLoaded(page: page, washers: washers, filter: _filter, selectedId: _selectedId, notice: notice));
     } on Exception catch (cause) {
-      emit(DispatchFailure(cause));
+      if (previous != null && notice != null) {
+        emit(previous.copyWith(clearBusy: true, notice: notice));
+      } else {
+        emit(DispatchFailure(cause, filter: _filter));
+      }
     }
   }
 
-  /// Zajednički tok radnje: zauzmi zahtev, pozovi use case, pa osveži listu ili javi zašto nije prošlo.
+  /// Zajednički tok radnje: zauzmi zahtev, pozovi use case, pa osveži podatke i javi ishod.
   /// Dok jedna radnja traje, nova se ignoriše.
   Future<void> _act(
     Emitter<DispatchState> emit,
@@ -104,11 +127,13 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
       emit(current.copyWith(clearBusy: true, notice: DispatchActionFailed(cause)));
       return;
     }
-    switch (result) {
-      case Success(:final value):
-        await _reload(emit, selectedId: current.selectedId, notice: onSuccess(value));
-      case Failure(:final error):
-        emit(current.copyWith(clearBusy: true, notice: DispatchActionRejected(error)));
-    }
+    await _reload(
+      emit,
+      previous: current,
+      notice: switch (result) {
+        Success(:final value) => onSuccess(value),
+        Failure(:final error) => DispatchActionRejected(error),
+      },
+    );
   }
 }

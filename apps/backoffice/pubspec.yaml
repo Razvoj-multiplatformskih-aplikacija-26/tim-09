@@ -8,6 +8,8 @@ environment:
 resolution: workspace
 
 dependencies:
+  api_client:
+    path: ../../packages/api_client
   blocs:
     path: ../../packages/blocs
   domain:
@@ -18,6 +20,8 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: 0.20.3
+  platform_adapters:
+    path: ../../packages/platform_adapters
   ui:
     path: ../../packages/ui
   use_cases:

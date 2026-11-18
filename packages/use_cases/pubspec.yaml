@@ -10,6 +10,7 @@ resolution: workspace
 dependencies:
   domain:
     path: ../domain
+  meta: 1.19.0
 
 dev_dependencies:
   test: 1.31.1

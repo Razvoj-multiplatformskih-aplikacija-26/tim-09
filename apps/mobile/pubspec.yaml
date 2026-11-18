@@ -8,6 +8,8 @@ environment:
 resolution: workspace
 
 dependencies:
+  api_client:
+    path: ../../packages/api_client
   blocs:
     path: ../../packages/blocs
   domain:
@@ -19,6 +21,8 @@ dependencies:
     sdk: flutter
   go_router: 18.0.2
   intl: 0.20.3
+  platform_adapters:
+    path: ../../packages/platform_adapters
   ui:
     path: ../../packages/ui
   use_cases:

@@ -4,9 +4,21 @@ sealed class DispatchEvent {
   const DispatchEvent();
 }
 
-/// Inicijalno učitavanje i ponovni pokušaj.
+/// Inicijalno učitavanje, osvežavanje tekuće stranice i ponovni pokušaj.
 final class DispatchRequested extends DispatchEvent {
   const DispatchRequested();
+}
+
+final class DispatchPageRequested extends DispatchEvent {
+  const DispatchPageRequested(this.offset);
+
+  final int offset;
+}
+
+final class DispatchFilterChanged extends DispatchEvent {
+  const DispatchFilterChanged(this.filter);
+
+  final RequestStatusFilter? filter;
 }
 
 /// Dispečer je izabrao zahtev u listi; `null` poništava izbor.
@@ -16,7 +28,7 @@ final class DispatchRequestSelected extends DispatchEvent {
   final WashRequestId? id;
 }
 
-/// Dispečer dodeljuje perača zahtevu; domen proverava da perač nema drugi aktivan posao.
+/// Dispečer dodeljuje perača zahtevu; server proverava da perač nema drugi aktivan posao.
 final class DispatchAcceptRequested extends DispatchEvent {
   const DispatchAcceptRequested(this.id, this.washerId);
 

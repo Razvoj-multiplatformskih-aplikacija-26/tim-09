@@ -107,10 +107,16 @@ class EmptyView extends StatelessWidget {
 }
 
 class FailureView extends StatelessWidget {
-  const FailureView({super.key, required this.onRetry, this.title = 'Podaci trenutno nisu dostupni.'});
+  const FailureView({
+    super.key,
+    required this.onRetry,
+    this.title = 'Podaci trenutno nisu dostupni.',
+    this.message = 'Proverite internet vezu i pokušajte ponovo.',
+  });
 
   final VoidCallback onRetry;
   final String title;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +124,7 @@ class FailureView extends StatelessWidget {
       icon: Icons.cloud_off_outlined,
       color: Theme.of(context).colorScheme.error,
       title: Semantics(liveRegion: true, child: Text(title)),
-      subtitle: 'Proverite internet vezu i pokušajte ponovo.',
+      subtitle: message,
       action: FilledButton.tonalIcon(
         onPressed: onRetry,
         icon: const Icon(Icons.refresh),

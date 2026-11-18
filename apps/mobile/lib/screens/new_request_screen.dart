@@ -46,19 +46,30 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
   /// Kalendar nudi samo dane koje pravilo o terminu dozvoljava, po istom satu kao i provera.
   Future<void> _pickStart(FormFieldState<DateTime> field) async {
     final now = context.read<AppDependencies>().clock.now();
+    DateTime day(DateTime instant) {
+      final local = inBusinessTime(instant);
+      return DateTime(local.year, local.month, local.day);
+    }
+
+    final today = day(now);
+    final start = _start;
     final date = await showDatePicker(
       context: context,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(WashSlot.maxAdvance),
-      initialDate: _start ?? now,
-      currentDate: now,
+      firstDate: today,
+      lastDate: day(now.add(WashSlot.maxAdvance)),
+      initialDate: start == null ? today : day(start),
+      currentDate: today,
     );
     if (date == null || !mounted) return;
-    final time = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 10, minute: 0));
+    final chosen = start == null ? null : inBusinessTime(start);
+    final time = await showTimePicker(
+      context: context,
+      initialTime: chosen == null ? const TimeOfDay(hour: 10, minute: 0) : TimeOfDay.fromDateTime(chosen),
+    );
     if (time == null || !mounted) return;
-    final start = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    setState(() => _start = start);
-    field.didChange(start);
+    final picked = businessDate(date.year, date.month, date.day, time.hour, time.minute);
+    setState(() => _start = picked);
+    field.didChange(picked);
   }
 
   void _submit() {
@@ -66,7 +77,6 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
     final now = context.read<AppDependencies>().clock.now();
     // Polja su već prošla proveru, pa parse ovde sigurno uspeva.
     final draft = WashRequestDraft(
-      clientId: context.read<AppDependencies>().user.id,
       vehicle: Vehicle(type: _type, plate: LicensePlate.parse(_plate.text).valueOrNull!),
       tier: _tier,
       address: Address.parse(_address.text).valueOrNull!,
@@ -85,7 +95,11 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
         messenger.showSnackBar(const SnackBar(content: Text('Zahtev je poslat.')));
         context.pop();
       case WashRequestFormRejected(:final error):
+        context.read<MyRequestsBloc>().add(const MyRequestsRequested());
         messenger.showSnackBar(SnackBar(content: Text(error.message)));
+      case WashRequestFormFailed(cause: NetworkException(outcomeUnknown: true) && final cause):
+        context.read<MyRequestsBloc>().add(const MyRequestsRequested());
+        messenger.showSnackBar(SnackBar(content: Text(failureMessage(cause))));
       case WashRequestFormFailed():
         messenger.showSnackBar(const SnackBar(content: Text('Slanje nije uspelo. Pokušajte ponovo.')));
       case WashRequestFormEditing() || WashRequestFormSubmitting():

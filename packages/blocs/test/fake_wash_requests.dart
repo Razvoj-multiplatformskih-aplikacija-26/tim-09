@@ -1,59 +1,14 @@
 import 'package:domain/domain.dart';
+import 'package:use_cases/testing.dart';
 import 'package:use_cases/use_cases.dart';
 
-/// Repozitorijum u memoriji za testove, bez kašnjenja.
-final class FakeWashRequests implements WashRequestRepository {
-  FakeWashRequests([List<WashRequest>? requests]) : _requests = [...?requests];
+const washerProfiles = [
+  Washer(id: WasherId('w-1'), name: 'Nikola Petrović', hasActiveJob: false),
+  Washer(id: WasherId('w-2'), name: 'Jovan Ilić', hasActiveJob: false),
+];
 
-  final List<WashRequest> _requests;
-  int failingRequests = 0;
+InMemoryWashRequests fakeRequests(User user, DateTime now, [List<WashRequest> requests = const []]) =>
+    InMemoryWashRequests(clock: FixedClock(now), currentUser: () => user, requests: requests, washers: washerProfiles);
 
-  void _maybeFail() {
-    if (failingRequests > 0) {
-      failingRequests--;
-      throw const RepositoryException('Simulated outage');
-    }
-  }
-
-  @override
-  Future<List<WashRequest>> requestsOf(UserId clientId) async {
-    _maybeFail();
-    return _requests.where((r) => r.clientId == clientId).toList();
-  }
-
-  @override
-  Future<WashRequest?> find(WashRequestId id) async {
-    _maybeFail();
-    return _requests.where((r) => r.id == id).firstOrNull;
-  }
-
-  @override
-  Future<WashRequest> create(WashRequestDraft draft) async {
-    _maybeFail();
-    final request = WashRequest(
-      id: WashRequestId('new-${_requests.length}'),
-      clientId: draft.clientId,
-      vehicle: draft.vehicle,
-      tier: draft.tier,
-      address: draft.address,
-      slot: draft.slot,
-      note: draft.note,
-      createdAt: DateTime(2026),
-    );
-    _requests.add(request);
-    return request;
-  }
-
-  @override
-  Future<WashRequest> save(WashRequest request) async {
-    _maybeFail();
-    _requests[_requests.indexWhere((r) => r.id == request.id)] = request;
-    return request;
-  }
-
-  @override
-  Future<List<WashRequest>> allRequests() async {
-    _maybeFail();
-    return List.of(_requests);
-  }
-}
+RequestPage pageOf(List<WashRequest> items, {int? total, int limit = 20, int offset = 0}) =>
+    RequestPage(items: items, total: total ?? items.length, limit: limit, offset: offset);

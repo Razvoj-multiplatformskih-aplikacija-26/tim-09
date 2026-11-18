@@ -8,13 +8,5 @@ final class SubmitRequest {
 
   final WashRequestRepository requests;
 
-  Future<Result<WashRequest>> call(WashRequestDraft draft) async {
-    final mine = await requests.requestsOf(draft.clientId);
-    if (!canSubmit(draft.clientId, mine)) {
-      return Failure(
-        TooManyPendingRequests(maxPending: maxPendingRequests, currentPending: pendingRequestsOf(draft.clientId, mine)),
-      );
-    }
-    return Success(await requests.create(draft));
-  }
+  Future<Result<WashRequest>> call(WashRequestDraft draft) => requests.create(draft);
 }

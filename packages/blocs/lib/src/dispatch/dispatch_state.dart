@@ -3,6 +3,10 @@ part of 'dispatch_bloc.dart';
 sealed class DispatchState extends Equatable {
   const DispatchState();
 
+  RequestStatusFilter? get filter => null;
+
+  DispatchNotice? get notice => null;
+
   @override
   List<Object?> get props => const [];
 
@@ -11,32 +15,61 @@ sealed class DispatchState extends Equatable {
 }
 
 final class DispatchLoading extends DispatchState {
-  const DispatchLoading();
+  const DispatchLoading({this.filter});
+
+  @override
+  final RequestStatusFilter? filter;
+
+  @override
+  List<Object?> get props => [filter];
 }
 
 final class DispatchFailure extends DispatchState {
-  const DispatchFailure(this.cause);
+  const DispatchFailure(this.cause, {this.filter});
 
   final Object cause;
+  @override
+  final RequestStatusFilter? filter;
 
   @override
-  List<Object?> get props => [cause];
+  List<Object?> get props => [cause, filter];
 
   @override
-  String toString() => 'DispatchFailure($cause)';
+  String toString() => 'DispatchFailure(${cause.runtimeType})';
 }
 
 final class DispatchEmpty extends DispatchState {
-  const DispatchEmpty();
+  const DispatchEmpty({this.filter, this.notice});
+
+  @override
+  final RequestStatusFilter? filter;
+  @override
+  final DispatchNotice? notice;
+
+  @override
+  List<Object?> get props => [filter, notice];
 }
 
 final class DispatchLoaded extends DispatchState {
-  const DispatchLoaded({required this.requests, this.selectedId, this.busyId, this.notice});
+  const DispatchLoaded({
+    required this.page,
+    required this.washers,
+    this.filter,
+    this.selectedId,
+    this.busyId,
+    this.notice,
+  });
 
-  final List<WashRequest> requests;
+  final RequestPage page;
+  final List<Washer> washers;
+  @override
+  final RequestStatusFilter? filter;
   final WashRequestId? selectedId;
   final WashRequestId? busyId;
+  @override
   final DispatchNotice? notice;
+
+  List<WashRequest> get requests => page.items;
 
   WashRequest? get selected => find(selectedId);
 
@@ -44,15 +77,25 @@ final class DispatchLoaded extends DispatchState {
 
   bool isBusy(WashRequest request) => busyId == request.id;
 
-  /// Pravilo o jednom aktivnom poslu živi u domenu; ovde ga ekran samo pita, da zauzetog perača ne nudi.
-  bool isWasherBusy(WasherId washer) => washerHasActiveJob(washer, requests);
+  /// Dostupnost perača računa server nad svim aktivnim poslovima, ne samo nad ovom stranicom.
+  bool isWasherBusy(WasherId washer) => washers.where((w) => w.id == washer).firstOrNull?.hasActiveJob ?? false;
+
+  String washerName(WasherId washer) => washers.where((w) => w.id == washer).firstOrNull?.name ?? washer.value;
 
   @override
-  List<Object?> get props => [requests, selectedId, busyId, notice];
+  List<Object?> get props => [
+    page,
+    washers.map((w) => (w.id, w.name, w.hasActiveJob)).toList(),
+    filter,
+    selectedId,
+    busyId,
+    notice,
+  ];
 
   @override
   String toString() => [
-    'DispatchLoaded(${requests.length} requests',
+    'DispatchLoaded(${requests.length} of ${page.total} at ${page.offset}',
+    if (filter case final filter?) ', ${filter.name}',
     if (selectedId case final id?) ', selected ${id.value}',
     if (busyId case final id?) ', busy ${id.value}',
     if (notice case final notice?) ', ${notice.runtimeType}',
@@ -60,7 +103,6 @@ final class DispatchLoaded extends DispatchState {
   ].join();
 
   DispatchLoaded copyWith({
-    List<WashRequest>? requests,
     WashRequestId? selectedId,
     bool clearSelected = false,
     WashRequestId? busyId,
@@ -69,7 +111,9 @@ final class DispatchLoaded extends DispatchState {
     bool clearNotice = false,
   }) {
     return DispatchLoaded(
-      requests: requests ?? this.requests,
+      page: page,
+      washers: washers,
+      filter: filter,
       selectedId: clearSelected ? null : (selectedId ?? this.selectedId),
       busyId: clearBusy ? null : (busyId ?? this.busyId),
       notice: clearNotice ? null : (notice ?? this.notice),

@@ -4,9 +4,15 @@ sealed class MyRequestsEvent {
   const MyRequestsEvent();
 }
 
-/// Prvo učitavanje i „Pokušaj ponovo“.
+/// Prvo učitavanje, osvežavanje tekuće stranice i „Pokušaj ponovo“.
 final class MyRequestsRequested extends MyRequestsEvent {
   const MyRequestsRequested();
+}
+
+final class MyRequestsPageRequested extends MyRequestsEvent {
+  const MyRequestsPageRequested(this.offset);
+
+  final int offset;
 }
 
 final class RequestCancellationRequested extends MyRequestsEvent {

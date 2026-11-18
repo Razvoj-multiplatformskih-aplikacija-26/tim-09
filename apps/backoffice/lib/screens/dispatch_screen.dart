@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:ui/ui.dart';
+import 'package:use_cases/use_cases.dart';
 
 import '../dependencies.dart';
 import '../widgets/request_details.dart';
@@ -23,6 +24,7 @@ class DispatchScreen extends StatelessWidget {
       RequestReleased() => 'Zahtev je vraćen u red.',
       RequestCancelledByStaff() => 'Zahtev je otkazan.',
       DispatchActionRejected(:final error) => error.message,
+      DispatchActionFailed(cause: NetworkException(outcomeUnknown: true) && final cause) => failureMessage(cause),
       DispatchActionFailed() => 'Radnja nije uspela. Pokušajte ponovo.',
     };
     // Uska traka na sredini, da ne prekrije dugmad u panelu sa detaljima.
@@ -53,41 +55,65 @@ class DispatchScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bloc = context.read<DispatchBloc>();
+    final auth = context.read<AuthBloc>();
+    final user = context.read<User>();
     void refresh() => bloc.add(const DispatchRequested());
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dispečerska tabla'),
-        actions: [
-          const _DebugMenu(),
-          IconButton(onPressed: refresh, tooltip: 'Osveži (F5)', icon: const Icon(Icons.refresh)),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.arrowDown): () => _moveSelection(bloc, 1),
-          const SingleActivator(LogicalKeyboardKey.arrowUp): () => _moveSelection(bloc, -1),
-          const SingleActivator(LogicalKeyboardKey.escape): () => bloc.add(const DispatchRequestSelected(null)),
-          const SingleActivator(LogicalKeyboardKey.keyA): () => _assignSelected(context),
-          const SingleActivator(LogicalKeyboardKey.f5): refresh,
-        },
-        child: Focus(
-          autofocus: true,
-          child: BlocConsumer<DispatchBloc, DispatchState>(
-            listenWhen: (previous, current) => current is DispatchLoaded && current.notice != null,
-            listener: (context, state) => _showNotice(context, (state as DispatchLoaded).notice!),
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.arrowDown): () => _moveSelection(bloc, 1),
+        const SingleActivator(LogicalKeyboardKey.arrowUp): () => _moveSelection(bloc, -1),
+        const SingleActivator(LogicalKeyboardKey.escape): () => bloc.add(const DispatchRequestSelected(null)),
+        const SingleActivator(LogicalKeyboardKey.keyA): () => _assignSelected(context),
+        const SingleActivator(LogicalKeyboardKey.f5): refresh,
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Dispečerska tabla'),
+            actions: [
+              const _FilterMenu(),
+              const _DebugMenu(),
+              IconButton(onPressed: refresh, tooltip: 'Osveži (F5)', icon: const Icon(Icons.refresh)),
+              BlocBuilder<AuthBloc, AuthState>(
+                builder: (context, state) => IconButton(
+                  onPressed: state is AuthSignedIn && !state.signingOut
+                      ? () => auth.add(const AuthLogoutRequested())
+                      : null,
+                  tooltip: 'Odjavi se (${user.username}, ${user.role.label})',
+                  icon: const Icon(Icons.logout),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+          body: BlocConsumer<DispatchBloc, DispatchState>(
+            listenWhen: (previous, current) => current.notice != null,
+            listener: (context, state) => _showNotice(context, state.notice!),
             builder: (context, state) => switch (state) {
               DispatchLoading() => const SingleChildScrollView(
                 padding: EdgeInsets.all(CarWashTheme.gutter),
                 child: ListSkeleton(cards: 5),
               ),
-              DispatchFailure() => Center(
-                child: SingleChildScrollView(child: FailureView(onRetry: refresh)),
+              DispatchFailure(:final cause) => Center(
+                child: SingleChildScrollView(
+                  child: FailureView(message: failureMessage(cause), onRetry: refresh),
+                ),
               ),
-              DispatchEmpty() => const Center(
-                child: EmptyView(
-                  title: 'Nema zahteva u sistemu.',
-                  subtitle: 'Novi zahtevi klijenata pojaviće se ovde.',
+              DispatchEmpty(:final filter) => Center(
+                child: SingleChildScrollView(
+                  child: filter == null
+                      ? const EmptyView(
+                          title: 'Nema zahteva u sistemu.',
+                          subtitle: 'Novi zahtevi klijenata pojaviće se ovde.',
+                        )
+                      : EmptyView(
+                          title: 'Nema zahteva u stanju „${filterLabel(filter)}“.',
+                          action: TextButton(
+                            onPressed: () => bloc.add(const DispatchFilterChanged(null)),
+                            child: const Text('Prikaži sve'),
+                          ),
+                        ),
                 ),
               ),
               DispatchLoaded() => LayoutBuilder(
@@ -97,9 +123,20 @@ class DispatchScreen extends StatelessWidget {
                         state: state,
                         onOpen: (request) {
                           bloc.add(DispatchRequestSelected(request.id));
+                          final dependencies = context.read<BackofficeDependencies>();
                           Navigator.push<void>(
                             context,
-                            MaterialPageRoute(builder: (_) => RequestDetailScreen(id: request.id)),
+                            MaterialPageRoute(
+                              builder: (_) => BlocProvider(
+                                create: (_) => RequestDetailBloc(
+                                  id: request.id,
+                                  getRequest: dependencies.getRequest,
+                                  clock: dependencies.clock,
+                                  user: user,
+                                )..add(const RequestDetailRequested()),
+                                child: RequestDetailScreen(id: request.id),
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -144,7 +181,9 @@ class _WideLayout extends StatelessWidget {
                   key: ValueKey(selected.id),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(child: RequestDetails(request: selected)),
+                    Expanded(
+                      child: RequestDetails(request: selected, washerName: state.washerName),
+                    ),
                     RequestActions(request: selected, busy: state.isBusy(selected)),
                   ],
                 ),
@@ -177,9 +216,12 @@ class _RequestList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sections = _Sections.of(state.requests);
+    final page = state.page;
+    final bloc = context.read<DispatchBloc>();
+    final idle = state.busyId == null;
     List<Widget> section(String title, List<WashRequest> requests) => [
       if (requests.isNotEmpty) ...[
-        SectionHeader(title, trailing: '${requests.length}'),
+        SectionHeader(title),
         Card(
           child: Column(
             children: [
@@ -188,6 +230,7 @@ class _RequestList extends StatelessWidget {
                 _RequestTile(
                   key: ValueKey(request.id),
                   request: request,
+                  washerName: state.washerName,
                   selected: request.id == state.selectedId,
                   busy: state.isBusy(request),
                   onTap: () => onOpen(request),
@@ -206,6 +249,13 @@ class _RequestList extends StatelessWidget {
           ...section('Čekaju perača', sections.waiting),
           ...section('Aktivni', sections.active),
           ...section('Prethodni', sections.past),
+          PageBar(
+            first: page.firstNumber,
+            last: page.lastNumber,
+            total: page.total,
+            onPrevious: page.hasPrevious && idle ? () => bloc.add(DispatchPageRequested(page.previousOffset)) : null,
+            onNext: page.hasNext && idle ? () => bloc.add(DispatchPageRequested(page.nextOffset)) : null,
+          ),
         ],
       ),
     );
@@ -216,12 +266,14 @@ class _RequestTile extends StatelessWidget {
   const _RequestTile({
     super.key,
     required this.request,
+    required this.washerName,
     required this.selected,
     required this.busy,
     required this.onTap,
   });
 
   final WashRequest request;
+  final String Function(WasherId washer) washerName;
   final bool selected;
   final bool busy;
   final VoidCallback onTap;
@@ -231,7 +283,7 @@ class _RequestTile extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
     final washer = switch (request.status) {
-      Accepted(:final washerId) || InProgress(:final washerId) => BackofficeDependencies.washerName(washerId),
+      Accepted(:final washerId) || InProgress(:final washerId) => washerName(washerId),
       _ => null,
     };
     return ListTile(
@@ -284,6 +336,42 @@ class _DebugMenu extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+String filterLabel(RequestStatusFilter? filter) => switch (filter) {
+  null => 'Sva stanja',
+  RequestStatusFilter.submitted => 'Prijavljen',
+  RequestStatusFilter.accepted => 'Prihvaćen',
+  RequestStatusFilter.inProgress => 'U toku',
+  RequestStatusFilter.completed => 'Završen',
+  RequestStatusFilter.cancelled => 'Otkazan',
+};
+
+class _FilterMenu extends StatelessWidget {
+  const _FilterMenu();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<DispatchBloc, DispatchState>(
+      buildWhen: (previous, current) => previous.filter != current.filter,
+      builder: (context, state) => PopupMenuButton<RequestStatusFilter?>(
+        tooltip: 'Filter stanja',
+        initialValue: state.filter,
+        onSelected: (filter) => context.read<DispatchBloc>().add(DispatchFilterChanged(filter)),
+        itemBuilder: (context) => [
+          for (final filter in <RequestStatusFilter?>[null, ...RequestStatusFilter.values])
+            PopupMenuItem(value: filter, child: Text(filterLabel(filter))),
+        ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [const Icon(Icons.filter_list), const SizedBox(width: 6), Text(filterLabel(state.filter))],
+          ),
+        ),
+      ),
     );
   }
 }

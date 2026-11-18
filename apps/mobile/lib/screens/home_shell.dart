@@ -1,4 +1,6 @@
+import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 class HomeShell extends StatelessWidget {
@@ -8,6 +10,7 @@ class HomeShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final washer = context.read<User>().role == Role.washer;
     return Scaffold(
       body: shell,
       bottomNavigationBar: DecoratedBox(
@@ -17,13 +20,17 @@ class HomeShell extends StatelessWidget {
         child: NavigationBar(
           selectedIndex: shell.currentIndex,
           onDestinationSelected: (index) => shell.goBranch(index, initialLocation: index == shell.currentIndex),
-          destinations: const [
+          destinations: [
             NavigationDestination(
-              icon: Icon(Icons.local_car_wash_outlined),
-              selectedIcon: Icon(Icons.local_car_wash),
-              label: 'Moji zahtevi',
+              icon: const Icon(Icons.local_car_wash_outlined),
+              selectedIcon: const Icon(Icons.local_car_wash),
+              label: washer ? 'Moji poslovi' : 'Moji zahtevi',
             ),
-            NavigationDestination(icon: Icon(Icons.sell_outlined), selectedIcon: Icon(Icons.sell), label: 'Cenovnik'),
+            const NavigationDestination(
+              icon: Icon(Icons.sell_outlined),
+              selectedIcon: Icon(Icons.sell),
+              label: 'Cenovnik',
+            ),
           ],
         ),
       ),

@@ -6,11 +6,15 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:ui/ui.dart';
 
 import 'app.dart';
+import 'config.dart';
 import 'dependencies.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting(serbianLatin);
   if (kDebugMode) Bloc.observer = ConsoleBlocObserver(debugPrint);
-  runApp(BackofficeApp(dependencies: BackofficeDependencies.fake()));
+  final dependencies = useFakeData
+      ? BackofficeDependencies.fake(signedIn: null)
+      : BackofficeDependencies.network(baseUrl: apiBaseUrl());
+  runApp(BackofficeApp(dependencies: dependencies));
 }

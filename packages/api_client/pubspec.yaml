@@ -1,0 +1,22 @@
+name: api_client
+description: CarWash & Go HTTP adapter shared by the mobile and backoffice clients, on the VM and the web.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.0
+resolution: workspace
+
+dependencies:
+  api_mapping:
+    path: ../api_mapping
+  contracts:
+    path: ../contracts
+  domain:
+    path: ../domain
+  http: 1.6.0
+  use_cases:
+    path: ../use_cases
+
+dev_dependencies:
+  test: 1.31.1

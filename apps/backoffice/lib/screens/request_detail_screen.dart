@@ -6,7 +6,7 @@ import 'package:ui/ui.dart';
 
 import '../widgets/request_details.dart';
 
-/// Detalji na uskom ekranu. Zahtev čita iz Bloc-a po id-u, pa posle svake radnje prikazuje novo stanje.
+/// Detalji na uskom ekranu. Zahtev čita sa servera po id-u, pa posle svake radnje prikazuje novo stanje.
 class RequestDetailScreen extends StatelessWidget {
   const RequestDetailScreen({super.key, required this.id});
 
@@ -14,26 +14,41 @@ class RequestDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<DispatchBloc, DispatchState>(
-      builder: (context, state) {
-        final request = state is DispatchLoaded ? state.find(id) : null;
-        return Scaffold(
-          appBar: AppBar(title: Text('Zahtev ${id.value}')),
-          body: switch ((state, request)) {
-            (DispatchLoaded(), final request?) => RequestDetails(request: request),
-            (DispatchLoading(), _) => const Center(child: CircularProgressIndicator()),
-            _ => const Center(child: EmptyView(title: 'Zahtev nije pronađen.')),
-          },
-          // Dugmad su u donjoj traci, pa obaveštenje iskače iznad njih umesto da ih prekrije.
-          bottomNavigationBar: switch ((state, request)) {
-            (final DispatchLoaded loaded, final request?) => RequestActions(
-              request: request,
-              busy: loaded.isBusy(request),
-            ),
-            _ => null,
-          },
-        );
-      },
+    final detail = context.read<RequestDetailBloc>();
+    return BlocListener<DispatchBloc, DispatchState>(
+      listenWhen: (previous, current) => current.notice != null,
+      listener: (context, state) => detail.add(const RequestDetailRequested(quiet: true)),
+      child: BlocBuilder<RequestDetailBloc, RequestDetailState>(
+        builder: (context, state) {
+          final dispatch = context.watch<DispatchBloc>().state;
+          final loaded = dispatch is DispatchLoaded ? dispatch : null;
+          String washerName(WasherId washer) => loaded?.washerName(washer) ?? washer.value;
+          return Scaffold(
+            appBar: AppBar(title: Text('Zahtev ${id.value}')),
+            body: switch (state) {
+              RequestDetailLoaded(:final request) => RequestDetails(request: request, washerName: washerName),
+              RequestDetailLoading() => const Center(child: CircularProgressIndicator()),
+              RequestDetailUnavailable() => const Center(child: EmptyView(title: 'Zahtev nije pronađen.')),
+              RequestDetailFailure(:final cause) => Center(
+                child: SingleChildScrollView(
+                  child: FailureView(
+                    message: failureMessage(cause),
+                    onRetry: () => detail.add(const RequestDetailRequested()),
+                  ),
+                ),
+              ),
+            },
+            // Dugmad su u donjoj traci, pa obaveštenje iskače iznad njih umesto da ih prekrije.
+            bottomNavigationBar: switch ((state, loaded)) {
+              (RequestDetailLoaded(:final request), final DispatchLoaded board) => RequestActions(
+                request: request,
+                busy: board.busyId == request.id,
+              ),
+              _ => null,
+            },
+          );
+        },
+      ),
     );
   }
 }

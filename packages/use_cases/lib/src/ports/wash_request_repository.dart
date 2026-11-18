@@ -1,16 +1,18 @@
 import 'package:domain/domain.dart';
 
+import '../request_query.dart';
 import '../wash_request_draft.dart';
 
-/// Port: odakle stižu zahtevi. U KT1 ga implementira lažni repozitorijum u aplikaciji, od KT2 server.
 abstract interface class WashRequestRepository {
-  Future<List<WashRequest>> requestsOf(UserId clientId);
+  Future<RequestPage> list(RequestQuery query);
 
   Future<WashRequest?> find(WashRequestId id);
 
-  Future<WashRequest> create(WashRequestDraft draft);
+  Future<Result<WashRequest>> create(WashRequestDraft draft);
 
-  Future<WashRequest> save(WashRequest request);
+  Future<Result<WashRequest>> cancel({required WashRequestId id, required String reason});
 
-  Future<List<WashRequest>> allRequests();
+  Future<Result<WashRequest>> assign({required WashRequestId id, required WasherId washerId});
+
+  Future<Result<WashRequest>> release({required WashRequestId id});
 }

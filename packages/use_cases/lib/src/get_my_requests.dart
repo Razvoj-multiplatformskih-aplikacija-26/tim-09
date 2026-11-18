@@ -1,14 +1,13 @@
-import 'package:domain/domain.dart';
-
 import 'ports/wash_request_repository.dart';
+import 'request_query.dart';
 
 final class GetMyRequests {
   const GetMyRequests({required this.requests});
 
+  static const pageSize = 20;
+
   final WashRequestRepository requests;
 
-  Future<List<WashRequest>> call(User client) async {
-    final mine = await requests.requestsOf(client.id);
-    return mine..sort((a, b) => a.slot.start.compareTo(b.slot.start));
-  }
+  Future<RequestPage> call({int offset = 0, int limit = pageSize, RequestStatusFilter? status}) =>
+      requests.list(RequestQuery(scope: RequestScope.mine, limit: limit, offset: offset, status: status));
 }

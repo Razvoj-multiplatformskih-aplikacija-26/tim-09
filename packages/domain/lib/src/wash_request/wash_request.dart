@@ -21,6 +21,7 @@ final class WashRequest {
     required this.createdAt,
     this.note,
     this.status = const Submitted(),
+    this.quotedPrice,
   });
 
   final WashRequestId id;
@@ -32,8 +33,9 @@ final class WashRequest {
   final WashNote? note;
   final WashStatus status;
   final DateTime createdAt;
+  final PriceEstimate? quotedPrice;
 
-  PriceEstimate get price => estimate(vehicle.type, tier);
+  PriceEstimate get price => quotedPrice ?? estimate(vehicle.type, tier);
 
   bool get isActive => status.isActive;
 
@@ -48,6 +50,7 @@ final class WashRequest {
       createdAt: createdAt,
       note: note,
       status: status ?? this.status,
+      quotedPrice: quotedPrice,
     );
   }
 
@@ -62,10 +65,11 @@ final class WashRequest {
       other.slot == slot &&
       other.note == note &&
       other.status == status &&
-      other.createdAt == createdAt;
+      other.createdAt == createdAt &&
+      other.quotedPrice == quotedPrice;
 
   @override
-  int get hashCode => Object.hash(id, clientId, vehicle, tier, address, slot, note, status, createdAt);
+  int get hashCode => Object.hash(id, clientId, vehicle, tier, address, slot, note, status, createdAt, quotedPrice);
 
   @override
   String toString() => 'WashRequest($id, ${slot.start.toIso8601String()}, $status)';

@@ -1,3 +1,4 @@
+import 'package:domain/domain.dart';
 import 'package:intl/intl.dart';
 
 const serbianLatin = 'sr_Latn';
@@ -8,9 +9,9 @@ final _price = NumberFormat.decimalPattern(serbianLatin);
 
 String capitalize(String text) => text.isEmpty ? text : text[0].toUpperCase() + text.substring(1);
 
-String formatDate(DateTime moment) => capitalize(_date.format(moment));
+String formatDate(DateTime moment) => capitalize(_date.format(inBusinessTime(moment)));
 
-String formatTime(DateTime moment) => _time.format(moment);
+String formatTime(DateTime moment) => _time.format(inBusinessTime(moment));
 
 String formatDateAndTime(DateTime moment) => '${formatDate(moment)} u ${formatTime(moment)}';
 

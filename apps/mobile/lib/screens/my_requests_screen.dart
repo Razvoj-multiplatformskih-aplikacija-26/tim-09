@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui/ui.dart';
+import 'package:use_cases/use_cases.dart';
 
 import '../dependencies.dart';
 
@@ -13,26 +14,23 @@ class MyRequestsScreen extends StatelessWidget {
   const MyRequestsScreen({super.key});
 
   void _showNotice(BuildContext context, MyRequestsNotice notice) {
-    final message = switch (notice) {
-      RequestCancelled() => 'Zahtev je otkazan.',
-      CancellationRejected(:final error) => error.message,
-      CancellationFailed() => 'Otkazivanje nije uspelo. Pokušajte ponovo.',
-    };
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(SnackBar(content: Text(cancellationMessage(notice))));
     context.read<MyRequestsBloc>().add(const MyRequestsNoticeAcknowledged());
   }
 
   @override
   Widget build(BuildContext context) {
     final bloc = context.read<MyRequestsBloc>();
+    final user = context.read<User>();
+    final washer = user.role == Role.washer;
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: BlocConsumer<MyRequestsBloc, MyRequestsState>(
-          listenWhen: (previous, current) => current is MyRequestsLoaded && current.notice != null,
-          listener: (context, state) => _showNotice(context, (state as MyRequestsLoaded).notice!),
+          listenWhen: (previous, current) => current.notice != null,
+          listener: (context, state) => _showNotice(context, state.notice!),
           builder: (context, state) => Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 720),
@@ -43,15 +41,25 @@ class MyRequestsScreen extends StatelessWidget {
                   children: [
                     const _Greeting(),
                     const SizedBox(height: 20),
-                    const _OrderHero(),
+                    if (mayCreateRequest(user)) const _OrderHero(),
                     ...switch (state) {
                       MyRequestsLoading() => const [SizedBox(height: 28), ListSkeleton(cards: 3)],
-                      MyRequestsFailure() => [FailureView(onRetry: () => bloc.add(const MyRequestsRequested()))],
-                      MyRequestsEmpty() => const [
-                        EmptyView(
-                          title: 'Još nemate zahteva za pranje.',
-                          subtitle: 'Naručite prvo pranje i perač dolazi do vašeg vozila.',
+                      MyRequestsFailure(:final cause) => [
+                        FailureView(
+                          message: failureMessage(cause),
+                          onRetry: () => bloc.add(const MyRequestsRequested()),
                         ),
+                      ],
+                      MyRequestsEmpty() => [
+                        washer
+                            ? const EmptyView(
+                                title: 'Nemate dodeljenih aktivnih poslova.',
+                                subtitle: 'Dispečer vam dodeljuje poslove; povucite nadole da osvežite.',
+                              )
+                            : const EmptyView(
+                                title: 'Još nemate zahteva za pranje.',
+                                subtitle: 'Naručite prvo pranje i perač dolazi do vašeg vozila.',
+                              ),
                       ],
                       MyRequestsLoaded() => _requestList(context, state),
                     },
@@ -71,7 +79,7 @@ class MyRequestsScreen extends StatelessWidget {
     void open(WashRequest request) => context.push('/requests/${request.id.value}');
     return [
       if (state.active.isNotEmpty) ...[
-        SectionHeader('Aktivni', trailing: '${state.active.length}'),
+        const SectionHeader('Aktivni'),
         for (final request in state.active)
           Padding(
             key: ValueKey(request.id),
@@ -86,7 +94,7 @@ class MyRequestsScreen extends StatelessWidget {
           ),
       ],
       if (state.past.isNotEmpty) ...[
-        SectionHeader('Prethodni', trailing: '${state.past.length}'),
+        const SectionHeader('Prethodni'),
         Card(
           child: Column(
             children: [
@@ -104,9 +112,27 @@ class MyRequestsScreen extends StatelessWidget {
           ),
         ),
       ],
+      PageBar(
+        first: state.page.firstNumber,
+        last: state.page.lastNumber,
+        total: state.page.total,
+        onPrevious: state.page.hasPrevious && !state.isBusy
+            ? () => context.read<MyRequestsBloc>().add(MyRequestsPageRequested(state.page.previousOffset))
+            : null,
+        onNext: state.page.hasNext && !state.isBusy
+            ? () => context.read<MyRequestsBloc>().add(MyRequestsPageRequested(state.page.nextOffset))
+            : null,
+      ),
     ];
   }
 }
+
+String cancellationMessage(MyRequestsNotice notice) => switch (notice) {
+  RequestCancelled() => 'Zahtev je otkazan.',
+  CancellationRejected(:final error) => error.message,
+  CancellationFailed(cause: NetworkException(outcomeUnknown: true) && final cause) => failureMessage(cause),
+  CancellationFailed() => 'Otkazivanje nije uspelo. Pokušajte ponovo.',
+};
 
 class _Greeting extends StatelessWidget {
   const _Greeting();
@@ -114,7 +140,8 @@ class _Greeting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final name = capitalize(context.read<AppDependencies>().user.username);
+    final user = context.read<User>();
+    final name = capitalize(user.username);
     return Row(
       children: [
         Expanded(
@@ -122,21 +149,36 @@ class _Greeting extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Zdravo, $name',
+                'Zdravo, $name · ${user.role.label}',
                 style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 2),
-              Semantics(header: true, child: Text('Vaša pranja', style: theme.textTheme.headlineMedium)),
+              Semantics(
+                header: true,
+                child: Text(
+                  user.role == Role.washer ? 'Vaši poslovi' : 'Vaša pranja',
+                  style: theme.textTheme.headlineMedium,
+                ),
+              ),
             ],
           ),
         ),
         const _DebugMenu(),
-        CircleAvatar(
-          radius: 22,
-          backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-          child: Text(
-            name.isEmpty ? '?' : name[0],
-            style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.primary),
+        PopupMenuButton<void>(
+          tooltip: 'Nalog',
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              onTap: () => context.read<AuthBloc>().add(const AuthLogoutRequested()),
+              child: const ListTile(leading: Icon(Icons.logout), title: Text('Odjavi se')),
+            ),
+          ],
+          child: CircleAvatar(
+            radius: 22,
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+            child: Text(
+              name.isEmpty ? '?' : name[0],
+              style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.primary),
+            ),
           ),
         ),
       ],
@@ -406,6 +448,12 @@ class _CancelAction extends StatelessWidget {
 
 /// Otkazivanje je nepovratno, pa prvo pita. Posle „Da“ ekran samo šalje događaj Bloc-u.
 Future<void> confirmCancellation(BuildContext context, WashRequest request) async {
+  if (await askCancellation(context, request) && context.mounted) {
+    context.read<MyRequestsBloc>().add(RequestCancellationRequested(request.id, reason: 'Otkazao klijent.'));
+  }
+}
+
+Future<bool> askCancellation(BuildContext context, WashRequest request) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog.adaptive(
@@ -421,8 +469,7 @@ Future<void> confirmCancellation(BuildContext context, WashRequest request) asyn
       ],
     ),
   );
-  if (confirmed != true || !context.mounted) return;
-  context.read<MyRequestsBloc>().add(RequestCancellationRequested(request.id, reason: 'Otkazao klijent.'));
+  return confirmed == true;
 }
 
 /// Dugmad za demo stanja greške i praznog prikaza; postoje samo u debug izdanju i samo uz lažni repozitorijum.

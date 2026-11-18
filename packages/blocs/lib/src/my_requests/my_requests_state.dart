@@ -3,6 +3,8 @@ part of 'my_requests_bloc.dart';
 sealed class MyRequestsState extends Equatable {
   const MyRequestsState();
 
+  MyRequestsNotice? get notice => null;
+
   @override
   List<Object?> get props => const [];
 
@@ -23,42 +25,51 @@ final class MyRequestsFailure extends MyRequestsState {
   List<Object?> get props => [cause];
 
   @override
-  String toString() => 'MyRequestsFailure($cause)';
+  String toString() => 'MyRequestsFailure(${cause.runtimeType})';
 }
 
 final class MyRequestsEmpty extends MyRequestsState {
-  const MyRequestsEmpty();
+  const MyRequestsEmpty({this.notice});
+
+  @override
+  final MyRequestsNotice? notice;
+
+  @override
+  List<Object?> get props => [notice];
 }
 
 final class MyRequestsLoaded extends MyRequestsState {
   const MyRequestsLoaded({
-    required this.active,
-    required this.past,
+    required this.page,
     required this.cancellable,
     this.washerLate = const {},
     this.notice,
     this.cancellingId,
   });
 
-  final List<WashRequest> active;
-  final List<WashRequest> past;
+  final RequestPage page;
   final Set<WashRequestId> cancellable;
   final Set<WashRequestId> washerLate;
+  @override
   final MyRequestsNotice? notice;
   final WashRequestId? cancellingId;
 
+  List<WashRequest> get active => page.items.where((r) => r.isActive).toList();
+
+  List<WashRequest> get past => page.items.where((r) => !r.isActive).toList().reversed.toList();
+
   @override
-  List<Object?> get props => [active, past, cancellable, washerLate, notice, cancellingId];
+  List<Object?> get props => [page, cancellable, washerLate, notice, cancellingId];
 
   @override
   String toString() => [
-    'MyRequestsLoaded(${active.length} active, ${past.length} past',
+    'MyRequestsLoaded(${page.items.length} of ${page.total} at ${page.offset}',
     if (cancellingId case final id?) ', cancelling ${id.value}',
     if (notice case final notice?) ', ${notice.runtimeType}',
     ')',
   ].join();
 
-  WashRequest? find(WashRequestId id) => active.followedBy(past).where((r) => r.id == id).firstOrNull;
+  WashRequest? find(WashRequestId id) => page.items.where((r) => r.id == id).firstOrNull;
 
   bool canCancel(WashRequest request) => cancellable.contains(request.id);
 
@@ -69,10 +80,10 @@ final class MyRequestsLoaded extends MyRequestsState {
   bool isCancelling(WashRequest request) => cancellingId == request.id;
 
   MyRequestsLoaded withNotice(MyRequestsNotice? notice) =>
-      MyRequestsLoaded(active: active, past: past, cancellable: cancellable, washerLate: washerLate, notice: notice);
+      MyRequestsLoaded(page: page, cancellable: cancellable, washerLate: washerLate, notice: notice);
 
   MyRequestsLoaded withCancelling(WashRequestId id) =>
-      MyRequestsLoaded(active: active, past: past, cancellable: cancellable, washerLate: washerLate, cancellingId: id);
+      MyRequestsLoaded(page: page, cancellable: cancellable, washerLate: washerLate, cancellingId: id);
 }
 
 /// Jednokratna poruka posle akcije; ekran je prikaže i pošalje [MyRequestsNoticeAcknowledged].

@@ -4,13 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:ui/ui.dart';
 
-import '../dependencies.dart';
-
 /// Podaci jednog zahteva. Isti widget je desni panel na širokom ekranu i telo posebnog ekrana na uskom.
 class RequestDetails extends StatelessWidget {
-  const RequestDetails({super.key, required this.request});
+  const RequestDetails({super.key, required this.request, required this.washerName});
 
   final WashRequest request;
+  final String Function(WasherId washer) washerName;
 
   @override
   Widget build(BuildContext context) {
@@ -26,11 +25,11 @@ class RequestDetails extends StatelessWidget {
       if (request.note case final note?) _Row(Icons.sticky_note_2_outlined, 'Napomena', note.text),
       ...switch (status) {
         Accepted(:final washerId, :final at) => [
-          _Row(Icons.badge_outlined, 'Perač', BackofficeDependencies.washerName(washerId)),
+          _Row(Icons.badge_outlined, 'Perač', washerName(washerId)),
           _Row(Icons.check_circle_outline, 'Dodeljen', formatDateAndTime(at)),
         ],
         InProgress(:final washerId, :final arrivedAt) => [
-          _Row(Icons.badge_outlined, 'Perač', BackofficeDependencies.washerName(washerId)),
+          _Row(Icons.badge_outlined, 'Perač', washerName(washerId)),
           _Row(Icons.local_car_wash_outlined, 'Stigao', formatDateAndTime(arrivedAt)),
         ],
         Completed(:final finishedAt) => [_Row(Icons.done_all, 'Završeno', formatDateAndTime(finishedAt))],
@@ -155,22 +154,23 @@ class _Row extends StatelessWidget {
 }
 
 /// Bira perača i šalje dodelu. Perača koji već ima aktivan posao ne nudi; ako ga za to vreme
-/// zauzme neko drugi, domen svejedno odbije dodelu i ekran javi zašto.
+/// zauzme neko drugi, server svejedno odbije dodelu i ekran javi zašto.
 Future<void> assignWasher(BuildContext context, WashRequest request) async {
   final bloc = context.read<DispatchBloc>();
   final state = bloc.state;
-  bool isBusy(WasherId washer) => state is DispatchLoaded && state.isWasherBusy(washer);
+  final washers = state is DispatchLoaded ? state.washers : const <Washer>[];
   final washer = await showDialog<WasherId>(
     context: context,
     builder: (context) => SimpleDialog(
       title: const Text('Dodeli perača'),
       children: [
-        for (final w in BackofficeDependencies.washers)
+        if (washers.isEmpty) const ListTile(title: Text('Nema perača. Osvežite podatke.')),
+        for (final w in washers)
           ListTile(
-            enabled: !isBusy(w.id),
+            enabled: !w.hasActiveJob,
             leading: const Icon(Icons.badge_outlined),
             title: Text(w.name),
-            subtitle: Text(isBusy(w.id) ? 'Ima aktivan posao' : 'Slobodan'),
+            subtitle: Text(w.hasActiveJob ? 'Ima aktivan posao' : 'Slobodan'),
             onTap: () => Navigator.pop(context, w.id),
           ),
       ],

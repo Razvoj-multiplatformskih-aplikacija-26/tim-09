@@ -1,53 +1,84 @@
+import 'package:api_client/api_client.dart';
 import 'package:domain/domain.dart';
+import 'package:platform_adapters/platform_adapters.dart';
+import 'package:use_cases/testing.dart';
 import 'package:use_cases/use_cases.dart';
 
 import 'data/fake_dispatch_repository.dart';
 
-typedef Washer = ({WasherId id, String name});
-
-/// Jedino mesto gde se biraju implementacije. Zamena lažnog repozitorijuma
-/// serverom menja samo ovaj fajl, ne ekrane i ne Bloc-ove.
+/// Jedino mesto gde se biraju implementacije. Ekrani i Bloc-ovi ne znaju da li rade sa serverom ili fake podacima.
 final class BackofficeDependencies {
   BackofficeDependencies({
     required this.clock,
-    required this.user,
+    required this.auth,
     required WashRequestRepository requests,
+    required WasherRepository washers,
     this.fakeRepository,
+    this.fakeAuth,
   }) : getAllRequests = GetAllRequests(requests: requests),
+       getRequest = GetRequest(requests: requests),
+       getWashers = GetWashers(washers: washers),
        acceptRequest = AcceptRequest(requests: requests),
        releaseRequest = ReleaseRequest(requests: requests),
-       cancelRequest = CancelRequest(requests: requests, clock: clock);
+       cancelRequest = CancelRequest(requests: requests);
 
-  factory BackofficeDependencies.fake({Clock clock = const SystemClock(), Duration? latency}) {
-    final repository = latency == null
-        ? FakeDispatchRepository(clock: clock)
-        : FakeDispatchRepository(clock: clock, latency: latency);
+  factory BackofficeDependencies.network({required Uri baseUrl, Clock clock = const SystemClock()}) {
+    final api = CarWashApi(
+      baseUrl: baseUrl,
+      client: createHttpClient(),
+      session: SessionController(transport: platformTransport),
+    );
     return BackofficeDependencies(
       clock: clock,
-      user: currentDispatcher,
-      requests: repository,
-      fakeRepository: repository,
+      auth: HttpAuthRepository(
+        api: api,
+        application: ClientApplication.backoffice,
+        storage: platformTransport == SessionTransport.bearer ? SecureSessionStorage() : null,
+      ),
+      requests: HttpWashRequestRepository(api),
+      washers: HttpWasherRepository(api),
     );
   }
 
-  /// Backoffice u KT1 radi kao jedan, unapred prijavljen dispečer; prijava stiže u KT2.
-  static const currentDispatcher = User(id: UserId('u-dispatcher'), username: 'dispečer', role: Role.dispatcher);
+  factory BackofficeDependencies.fake({
+    Clock clock = const SystemClock(),
+    Duration latency = const Duration(milliseconds: 700),
+    User? signedIn = currentDispatcher,
+  }) {
+    final auth = InMemoryAuth(
+      application: ClientApplication.backoffice,
+      users: demoUsers,
+      clock: clock,
+      signedIn: signedIn,
+    );
+    final repository = createFakeDispatchRepository(
+      clock: clock,
+      currentUser: () => auth.currentUser,
+      latency: latency,
+    );
+    return BackofficeDependencies(
+      clock: clock,
+      auth: auth,
+      requests: repository,
+      washers: repository,
+      fakeRepository: repository,
+      fakeAuth: auth,
+    );
+  }
 
-  /// Perači su u KT1 fiksni; od KT2 stižu sa servera, uz odobravanje profila.
-  static const List<Washer> washers = [
-    (id: WasherId('w-1'), name: 'Nikola Petrović'),
-    (id: WasherId('w-2'), name: 'Jovan Ilić'),
-    (id: WasherId('w-3'), name: 'Stefan Marković'),
-    (id: WasherId('w-4'), name: 'Luka Đorđević'),
-  ];
+  /// Fiksni korisnici i perači postoje samo za fake konfiguraciju i testove; mrežni rad ih dobija sa servera.
+  static const currentDispatcher = User(id: UserId('u-dispatcher'), username: 'dispecer', role: Role.dispatcher);
 
-  static String washerName(WasherId id) => washers.where((w) => w.id == id).firstOrNull?.name ?? id.value;
+  static const demoUsers = [currentDispatcher, User(id: UserId('u-client'), username: 'marko', role: Role.client)];
 
   final Clock clock;
-  final User user;
+  final AuthRepository auth;
   final GetAllRequests getAllRequests;
+  final GetRequest getRequest;
+  final GetWashers getWashers;
   final AcceptRequest acceptRequest;
   final ReleaseRequest releaseRequest;
   final CancelRequest cancelRequest;
-  final FakeDispatchRepository? fakeRepository;
+  final InMemoryWashRequests? fakeRepository;
+  final InMemoryAuth? fakeAuth;
 }

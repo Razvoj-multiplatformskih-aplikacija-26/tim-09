@@ -1,5 +1,6 @@
 import 'package:backoffice/app.dart';
 import 'package:backoffice/dependencies.dart';
+import 'package:domain/domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -16,12 +17,13 @@ Future<BackofficeDependencies> pumpApp(
   WidgetTester tester, {
   Size size = wide,
   Duration latency = Duration.zero,
+  User? signedIn = BackofficeDependencies.currentDispatcher,
 }) async {
   await initializeDateFormatting(serbianLatin);
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final dependencies = BackofficeDependencies.fake(clock: FixedClock(testNow), latency: latency);
+  final dependencies = BackofficeDependencies.fake(clock: FixedClock(testNow), latency: latency, signedIn: signedIn);
   await tester.pumpWidget(BackofficeApp(dependencies: dependencies));
   await tester.pumpAndSettle();
   return dependencies;
@@ -34,5 +36,12 @@ Future<void> tapAndSettle(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
   await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
+Future<void> signIn(WidgetTester tester, String username, {String password = 'DemoPass123!'}) async {
+  await tester.enterText(find.widgetWithText(TextFormField, 'Korisničko ime'), username);
+  await tester.enterText(find.widgetWithText(TextFormField, 'Lozinka'), password);
+  await tester.tap(find.widgetWithText(FilledButton, 'Prijavi se'));
   await tester.pumpAndSettle();
 }

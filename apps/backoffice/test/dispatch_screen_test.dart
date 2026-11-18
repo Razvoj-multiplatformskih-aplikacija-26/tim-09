@@ -86,14 +86,12 @@ void main() {
     testWidgets('perača je u međuvremenu zauzeo drugi dispečer → domen odbija dodelu', (tester) async {
       final dependencies = await pumpApp(tester);
       final repository = dependencies.fakeRepository!;
-      await tester.runAsync(() async {
-        final other = (await repository.find(const WashRequestId('wr-102')))!;
-        await repository.save(
-          other.copyWith(
-            status: Accepted(washerId: const WasherId('w-3'), acceptedBy: const UserId('u-other'), at: testNow),
-          ),
-        );
-      });
+      final other = repository.all.firstWhere((r) => r.id == const WashRequestId('wr-102'));
+      repository.replace(
+        other.copyWith(
+          status: Accepted(washerId: const WasherId('w-3'), acceptedBy: const UserId('u-other'), at: testNow),
+        ),
+      );
 
       await tapAndSettle(tester, tileOf('NS 882-PT'));
       await tapAndSettle(tester, find.text('Dodeli perača'));

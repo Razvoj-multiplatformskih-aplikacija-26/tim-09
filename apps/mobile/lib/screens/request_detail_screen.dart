@@ -6,42 +6,84 @@ import 'package:ui/ui.dart';
 
 import 'my_requests_screen.dart';
 
-/// Detalj jednog zahteva na adresi /requests/:id. Zahtev čita iz Bloc stanja po ID-ju,
-/// pa adresa radi i bez podataka prosleđenih sa liste.
+/// Detalj jednog zahteva na adresi /requests/:id. Zahtev čita sa servera po ID-ju,
+/// pa adresa radi i kada zapis nije na učitanoj stranici liste.
 class RequestDetailScreen extends StatelessWidget {
   const RequestDetailScreen({super.key, required this.id});
 
   final WashRequestId id;
 
+  void _onState(BuildContext context, RequestDetailState state) {
+    if (state is! RequestDetailLoaded) return;
+    final notice = state.notice;
+    if (notice == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(cancellationMessage(notice))));
+    context.read<RequestDetailBloc>().add(const RequestDetailNoticeAcknowledged());
+    if (notice is RequestCancelled || notice is CancellationRejected) {
+      context.read<MyRequestsBloc>().add(const MyRequestsRequested());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<MyRequestsBloc, MyRequestsState>(
-      builder: (context, state) {
-        final request = state is MyRequestsLoaded ? state.find(id) : null;
-        if (state is! MyRequestsLoaded || request == null) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Zahtev')),
-            body: const Center(child: EmptyView(title: 'Zahtev nije pronađen.')),
-          );
-        }
-        return _DetailBody(
+    final bloc = context.read<RequestDetailBloc>();
+    return BlocConsumer<RequestDetailBloc, RequestDetailState>(
+      listenWhen: (previous, current) => current is RequestDetailLoaded && current.notice != null,
+      listener: _onState,
+      builder: (context, state) => switch (state) {
+        RequestDetailLoaded(:final request, :final canCancel, :final washerLate, :final cancelling) => _DetailBody(
           request: request,
-          washerLate: state.isWasherLate(request),
-          busy: state.isCancelling(request),
-          onCancel: state.canCancel(request) && !state.isBusy ? () => confirmCancellation(context, request) : null,
-        );
+          washerLate: washerLate,
+          busy: cancelling,
+          onCancel: canCancel && !cancelling
+              ? () async {
+                  if (await askCancellation(context, request)) {
+                    bloc.add(const RequestDetailCancelRequested(reason: 'Otkazao klijent.'));
+                  }
+                }
+              : null,
+          onRefresh: () async => bloc.add(const RequestDetailRequested(quiet: true)),
+        ),
+        RequestDetailLoading() => Scaffold(
+          appBar: AppBar(title: const Text('Zahtev')),
+          body: const Center(child: CircularProgressIndicator()),
+        ),
+        RequestDetailUnavailable() => Scaffold(
+          appBar: AppBar(title: const Text('Zahtev')),
+          body: const Center(child: EmptyView(title: 'Zahtev nije pronađen ili nije dostupan.')),
+        ),
+        RequestDetailFailure(:final cause) => Scaffold(
+          appBar: AppBar(title: const Text('Zahtev')),
+          body: Center(
+            child: SingleChildScrollView(
+              child: FailureView(
+                message: failureMessage(cause),
+                onRetry: () => bloc.add(const RequestDetailRequested()),
+              ),
+            ),
+          ),
+        ),
       },
     );
   }
 }
 
 class _DetailBody extends StatelessWidget {
-  const _DetailBody({required this.request, required this.onCancel, required this.washerLate, required this.busy});
+  const _DetailBody({
+    required this.request,
+    required this.onCancel,
+    required this.washerLate,
+    required this.busy,
+    required this.onRefresh,
+  });
 
   final WashRequest request;
   final VoidCallback? onCancel;
   final bool washerLate;
   final bool busy;
+  final Future<void> Function() onRefresh;
 
   /// Šta se desilo zahtevu, po stanju. Bez `default`: novo stanje traži red i ovde.
   _Row? _statusRow(WashStatus status) => switch (status) {
@@ -73,90 +115,93 @@ class _DetailBody extends StatelessWidget {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(CarWashTheme.gutter, 4, CarWashTheme.gutter, 24),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Semantics(
-                                  header: true,
-                                  child: Text(formatTime(slot.start), style: theme.textTheme.displaySmall),
-                                ),
-                                Text(
-                                  formatDate(slot.start),
-                                  style: theme.textTheme.titleMedium?.copyWith(color: scheme.onSurfaceVariant),
-                                ),
-                              ],
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(CarWashTheme.gutter, 4, CarWashTheme.gutter, 24),
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Semantics(
+                                    header: true,
+                                    child: Text(formatTime(slot.start), style: theme.textTheme.displaySmall),
+                                  ),
+                                  Text(
+                                    formatDate(slot.start),
+                                    style: theme.textTheme.titleMedium?.copyWith(color: scheme.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          WashStatusBadge(status: request.status),
+                            WashStatusBadge(status: request.status),
+                          ],
+                        ),
+                        if (request.status.step != null) ...[
+                          const SizedBox(height: 20),
+                          WashProgress(status: request.status),
                         ],
-                      ),
-                      if (request.status.step != null) ...[
                         const SizedBox(height: 20),
-                        WashProgress(status: request.status),
-                      ],
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Ukupno',
-                              style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Ukupno',
+                                style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
+                              ),
                             ),
-                          ),
-                          Text(formatPrice(request.price.priceRsd), style: theme.textTheme.headlineSmall),
-                        ],
-                      ),
-                    ],
+                            Text(formatPrice(request.price.priceRsd), style: theme.textTheme.headlineSmall),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              if (washerLate) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: scheme.errorContainer.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(CarWashTheme.radiusMd),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.schedule, color: scheme.onErrorContainer),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Perač kasni više od ${washerLateAfter.inMinutes} min. Možete otkazati bez penala.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: scheme.onErrorContainer,
-                            fontWeight: FontWeight.w600,
+                if (washerLate) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: scheme.errorContainer.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(CarWashTheme.radiusMd),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.schedule, color: scheme.onErrorContainer),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Perač kasni više od ${washerLateAfter.inMinutes} min. Možete otkazati bez penala.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onErrorContainer,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SectionHeader('Detalji'),
+                Card(
+                  child: Column(
+                    children: [
+                      for (final (index, row) in rows.indexed) ...[if (index > 0) const Divider(indent: 76), row],
                     ],
                   ),
                 ),
               ],
-              const SectionHeader('Detalji'),
-              Card(
-                child: Column(
-                  children: [
-                    for (final (index, row) in rows.indexed) ...[if (index > 0) const Divider(indent: 76), row],
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

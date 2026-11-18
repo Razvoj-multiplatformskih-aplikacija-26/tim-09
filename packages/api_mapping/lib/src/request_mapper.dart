@@ -62,6 +62,10 @@ WashRequest requestFromDto(WashRequestDto dto) => WashRequest(
   createdAt: dto.createdAt,
   note: dto.note == null ? null : WashNote.existing(dto.note!),
   status: statusFromDto(dto.status),
+  quotedPrice: PriceEstimate(
+    priceRsd: dto.priceRsd,
+    duration: Duration(minutes: dto.durationMinutes),
+  ),
 );
 
 Result<WashRequest> createFromDto(
