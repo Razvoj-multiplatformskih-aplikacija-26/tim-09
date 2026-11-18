@@ -121,8 +121,64 @@ Demo proverava prijavu dve uloge, pregled, tri zabrane pristupa, kreiranje, vidl
 - Backoffice odmah zamenjuje prethodni SnackBar novom porukom.
 - Domenski test podaci koriste poslovnu zonu umesto vremenske zone računara.
 
+## Povezani klijenti (feature/kt2-clients)
+
+Datum: 19. novembar 2026. Grana: `feature/kt2-clients`, napravljena iz `main` posle merge-a serverskog PR-a. Proveravano na Windows 11 računaru, Flutter 3.47.6.
+
+### Šta je urađeno
+
+- Port `WashRequestRepository` ima eksplicitne komande `create`, `cancel`, `assign`, `release`, stranicu `list(RequestQuery)` i `find(id)`. Generički `save` i `clientId` u nacrtu su uklonjeni; vlasnika, aktera, cenu i vreme određuje server.
+- Novi čisti Dart paket `api_client`: `CarWashApi` (osnovna adresa, JSON, statusi, deset sekundi po zahtevu), HTTP repozitorijumi zahteva, perača i prijave, `SessionController` i odvojen izbor HTTP klijenta za VM (Bearer) i veb (`BrowserClient` sa `withCredentials`, HttpOnly cookie).
+- Novi paket `platform_adapters` sa `SecureSessionStorage` iza porta `SessionStorage` (flutter_secure_storage 11.2.0). Na macOS-u bez data protection keychain-a, da ne bi bio potreban provisioning profil.
+- `AuthBloc`, `RequestDetailBloc`, paginacija i filteri u `MyRequestsBloc` i `DispatchBloc`, perači sa `/washers`.
+- `WashRequest.quotedPrice`: klijent prikazuje cenu koju je vratio server, a lokalni cenovnik ostaje procena u formi. Server ne čuva ni ne menja ovo polje.
+- Poruke za mrežu, sesiju, protokol i razloge prijave su na jednom mestu u `ui` (`app_messages.dart`). Datumi i vremena se prikazuju u Europe/Belgrade, a izbor termina se tumači preko `businessDate`.
+- Zajednički in-memory adapteri (`package:use_cases/testing.dart`) izvršavaju isti domen kao server i služe testovima i eksplicitnoj fake konfiguraciji.
+
+Odbačene mogućnosti: automatsko ponavljanje POST-a posle prekida (ishod upisa nije poznat, pa korisnik dobija poruku da osveži podatke); jedan `MaterialApp` sa redirect-om pri isteku sesije (stari ekrani bi mogli da čitaju Bloc koji više ne postoji, pa svaka faza prijave ima svoj podsklop koji se zatvara sa sesijom); računanje zauzetosti perača iz trenutne stranice (server vraća `hasActiveJob` nad svim aktivnim poslovima).
+
+### Automatski testovi
+
+| Grupa | Prošlo |
+|---|---:|
+| domain, use_cases, blocs, contracts, api_mapping, api_client | 140 |
+| Relic i PostgreSQL integracija | 30 |
+| Mobilni widget testovi | 35 |
+| Backoffice widget testovi | 27 |
+| UI poruke i formatiranje | 5 |
+| platform_adapters | 2 |
+| Ukupno | 239 |
+
+Serverska grupa je izvršena nad bazom `carwash_test` (`TEST_DATABASE_PORT=55432`), nije preskočena. `flutter analyze` nema problema, `dart format --output=none --set-exit-if-changed apps packages` ne traži izmene.
+
+Novi testovi pokrivaju: 200/201/204, stranice, filtere i detalj van prve stranice; 409/422 sa parametrima, 401, 403 (prava i pogrešna aplikacija), nepoznat kod, 400/405/500 i loš JSON; timeout i nedostupan server bez ponavljanja upisa; obnovu native tokena, brisanje nevažećeg tokena, čuvanje tokena pri prekidu mreže, cookie transport bez Authorization zaglavlja, odjavu koja briše token tek posle servera, jedan događaj isteka pri više paralelnih 401 i zakasneli 401 stare sesije posle nove prijave; odbijanje komande sa očuvanim razlogom i reload-om, uključujući prazan i neuspešan reload; widget tokove prijave, odjave, isteka, uloge perača, zabrane rute `/new`, nedostupnog detalja, filtera, stranica i osvežavanja perača posle `washer_busy`. Postojeći KT1 testovi rasporeda i prečica prolaze bez izmene očekivanja.
+
+### Provera nad stvarnim serverom
+
+Server je izgrađen iz ažuriranog `pubspec.lock` i pokrenut kroz Compose; `/health` vraća 200, a postojeći `apps/server/tool/demo_api.dart` prolazi ceo tok.
+
+`dart packages/api_client/tool/live_check.dart` koristi iste HTTP repozitorijume kao aplikacije i prošao je 25 provera: nedostupan server, prijava klijenta i dispečera, klijent odbijen u backoffice-u, pogrešna lozinka, Marko kreira zahtev, server određuje vlasnika i stanje, napomena od 301 znaka vraća granicu sa servera, dispečer nalazi zahtev kroz stranice i filter, detalj po ID-u, Ana ne vidi Markov zahtev, tri zabrane klijentu, perači sa servera, dva dispečera za istog perača (jedan uspeh, jedan `washer_busy`), osvežena zauzetost, Marko vidi dodelu, vraćanje u red, obnova iz sačuvanog tokena, otkazivanje svog zahteva, odjava, opozvan token daje jedan istek sesije i nema obnove posle odjave.
+
+Windows desktop backoffice (`flutter test integration_test -d windows`) je stvarno pokrenut nad serverom: prijava dispečera, ponovno pokretanje aplikacije obnavlja prijavu iz Windows bezbednog skladišta, odjava, i posle ponovnog pokretanja nema obnove.
+
+Release veb backoffice je posluživan na `http://localhost:3000` i proveren u headless Chrome-u (puppeteer-core, privremeni profil): ekran prijave, klijent odbijen porukom „Backoffice je namenjen dispečerima.“, dispečer vidi tablu sa servera, sesija je HttpOnly kolačić nedostupan `document.cookie` i nije u localStorage, F5 zadržava prijavu preko `/auth/me`, odjava briše kolačić i F5 je ne vraća, bez JavaScript grešaka.
+
+### Buildovi
+
+| Aplikacija | Komanda | Rezultat |
+|---|---|---|
+| Backoffice | `flutter build web --release` | Prošlo |
+| Backoffice | `flutter build windows --release` | Prošlo |
+| Mobile | `flutter build apk --debug` | Prošlo |
+| Server | `docker build -f apps/server/Dockerfile .` | Prošlo |
+
+Na ovom Windows računaru `docker compose up --build` traži dodatnu bake dozvolu za putanju Dockerfile-a (`--allow=fs.read=apps\server\Dockerfile`). Ista slika je izgrađena komandom `docker build -f apps/server/Dockerfile -t carwash-kt2-server .`, a zatim pokrenuta sa `docker compose up -d --wait`. Na macOS-u ranije provereni `docker compose up --build` nije menjan.
+
 ## Preostalo za kompletnu KT2 demonstraciju
 
-Potrebno je implementirati i povezati zajednički mrežni adapter, auth tok i skladištenje prijave u mobilnoj i backoffice aplikaciji. Zatim ponoviti iste korisničke tokove kroz obe stvarno povezane aplikacije, proveriti deljenje promena između njih, istek i obnovu prijave na ciljnoj platformi i pokretanje na emulatoru/uređaju. Uputstvo za taj deo je u [KT2 API dokumentaciji](kt2-api.md).
+Ovo nije bilo moguće izvršiti na Windows računaru i ostaje za ručnu proveru pre odbrane:
 
-Detaljni završni logovi i snimci ove lokalne provere nalaze se u folderu `Documents/CarWash-Go-KT2/Provere-2026-11-18` na računaru na kome je provera izvršena.
+- Android emulator nije konfigurisan na ovom računaru, pa mobilna aplikacija nije pokrenuta na emulatoru; proveren je build i ceo tok kroz widget testove i isti HTTP adapter nad serverom.
+- iOS simulator i macOS backoffice zahtevaju Mac: `flutter build ios --simulator --no-codesign` i `flutter build macos --release`, zatim prijava, restart i odjava na obe platforme.
+- Tačka 9 iz plana (stara mobilna aplikacija, serverska granica napomene 200) traži emulator; serverski deo i prikaz granice iz `details` potvrđeni su gornjim alatom i testom `422 nosi novu serversku granicu`.
+- Istovremeni rad emulatora, desktop i veb klijenta na istoj bazi treba pokazati uživo; svaki od njih je pojedinačno proveren nad istim serverom.

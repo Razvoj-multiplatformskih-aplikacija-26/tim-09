@@ -1,6 +1,6 @@
 # KT2: ugovor i povezivanje klijenata
 
-Server, baza, autentifikacija i zajednički ugovor nalaze se na grani `feature/kt2-server`. Mobilna aplikacija i backoffice u ovom koraku zadržavaju KT1 fake adaptere. Sledeći korak je zajednički mrežni adapter, AuthBloc i povezivanje ekrana.
+Server, baza, autentifikacija i zajednički ugovor uvedeni su granom `feature/kt2-server`. Mobilna aplikacija i backoffice povezani su granom `feature/kt2-clients` preko zajedničkog paketa `api_client`; stanje i rezultati provera su u [izveštaju](kt2-provere.md).
 
 ## Paketi koje klijenti koriste
 

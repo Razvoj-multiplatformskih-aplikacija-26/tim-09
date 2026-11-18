@@ -39,7 +39,7 @@ Svi delovi koriste isti domenski paket, u kome su model i pravila. Server čuva 
 
 Serverski deo koristi Dart, Relic 1.2.0 i PostgreSQL. Zajednički paketi `contracts` i `api_mapping` opisuju HTTP podatke i prevod prema domenu. [Ugovor i povezivanje klijenata](docs/kt2-api.md) navode rute, greške i sledeće korake za aplikacije.
 
-Mobilna i backoffice aplikacija u ovoj fazi još koriste KT1 fake adaptere. Server je spreman za njihov zajednički mrežni adapter i prijavu.
+Mobilna i backoffice aplikacija podrazumevano rade sa ovim serverom preko zajedničkog paketa `api_client`. Obe počinju prijavom; podaci, prava i pravila dolaze sa servera.
 
 [Izveštaj o proverama](docs/kt2-provere.md) sadrži rezultate automatskih testova, buildova, provera pregledača i prekida servisa, kao i preostala ograničenja.
 
@@ -102,21 +102,57 @@ Flutter SDK mora da zadovolji Dart ograničenje `^3.13.0`. Iz korena:
 flutter pub get
 flutter analyze
 docker compose --profile test up -d --wait test-db
-TEST_DATABASE_PORT=55432 dart test packages/domain/test packages/use_cases/test packages/blocs/test packages/contracts/test packages/api_mapping/test apps/server/test
+TEST_DATABASE_PORT=55432 dart test packages/domain/test packages/use_cases/test packages/blocs/test packages/contracts/test packages/api_mapping/test packages/api_client/test apps/server/test
+flutter test apps/mobile/test apps/backoffice/test packages/ui/test packages/platform_adapters/test
 ```
 
 Integracioni testovi koriste posebnu bazu `carwash_test` i obnavljaju samo njene testne podatke. Bez `TEST_DATABASE_PORT` serverska integraciona grupa se preskače. Port se može promeniti kroz istoimenu konfiguraciju.
-
-Iz foldera `apps/mobile`, `apps/backoffice` i `packages/ui` pokrenuti:
-
-```bash
-flutter test
-```
 
 Iz `apps/backoffice` proveriti i veb prevođenje:
 
 ```bash
 flutter build web
+```
+
+### Pokretanje klijenata
+
+Server mora da radi (vidi gore). Adresa servera se zadaje javnom konfiguracijom `API_BASE_URL`; bez nje Android emulator koristi `http://10.0.2.2:8080`, a ostale platforme `http://localhost:8080`. ID uređaja birati iz `flutter devices`.
+
+Mobilna aplikacija, iz `apps/mobile`:
+
+```bash
+flutter run -d <android-device-id> --dart-define=API_BASE_URL=http://10.0.2.2:8080
+flutter run -d <ios-simulator-id> --dart-define=API_BASE_URL=http://localhost:8080
+```
+
+Backoffice, iz `apps/backoffice`:
+
+```bash
+flutter run -d windows --dart-define=API_BASE_URL=http://localhost:8080
+flutter run -d macos --dart-define=API_BASE_URL=http://localhost:8080
+flutter run -d chrome --web-port=3000 --dart-define=API_BASE_URL=http://localhost:8080
+```
+
+Veb mora da radi na `http://localhost:3000`, jer je taj origin dozvoljen u `CORS_ALLOWED_ORIGINS`; ne mešati `localhost` i `127.0.0.1`. Fizički telefon ne vidi `localhost` računara: potrebna je LAN adresa računara i objavljen port servera, što nije podrazumevana razvojna konfiguracija.
+
+Mobilna aplikacija prima klijente i perače, backoffice samo dispečera. Native klijenti čuvaju token u bezbednom skladištu platforme (Keystore, Keychain, Windows Credential Manager) i pri pokretanju ga proveravaju pozivom `/auth/me`. Veb backoffice koristi HttpOnly cookie i ne vidi token. Lozinka se nigde ne čuva.
+
+Lokalni HTTP je dozvoljen samo za razvoj: Android debug/profile manifest (`usesCleartextTraffic`), iOS `NSAllowsLocalNetworking`. Release Android build nad lokalnim HTTP-om nije podržan bez posebne konfiguracije. Na macOS-u backoffice ima `network.client` i koristi Keychain bez Keychain Sharing-a, pa nije potreban provisioning profil.
+
+Za rad bez servera (demo i razvoj ekrana) postoji fake konfiguracija u memoriji, uključena samo eksplicitno: `--dart-define=FAKE_DATA=true`. Nema tihog prebacivanja na fake kada server ne radi.
+
+Provera klijentskog mrežnog sloja nad pokrenutim serverom, iz korena:
+
+```bash
+dart packages/api_client/tool/live_check.dart
+```
+
+Alat prolazi kroz prijave, pogrešnu aplikaciju, kreiranje, granicu napomene sa servera, stranice i filter, detalj po ID-u, zabrane, dva dispečera za istog perača, obnovu i odjavu. Napravljeni zahtev na kraju otkazuje, a dodelu vraća u red. Tokeni se ne ispisuju.
+
+Provera desktop prijave i obnove iz bezbednog skladišta, iz `apps/backoffice` sa pokrenutim serverom:
+
+```bash
+flutter test integration_test -d windows
 ```
 
 ### Pravila, konkurentnost i sesije
