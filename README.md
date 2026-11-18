@@ -43,6 +43,8 @@ Mobilna i backoffice aplikacija u ovoj fazi još koriste KT1 fake adaptere. Serv
 
 [Izveštaj o proverama](docs/kt2-provere.md) sadrži rezultate automatskih testova, buildova, provera pregledača i prekida servisa, kao i preostala ograničenja.
 
+[Plan povezivanja klijenata](docs/kt2-klijenti.md) opisuje Andrijin nastavak posle serverskog PR-a, sa redosledom rada i izmenama po fajlovima.
+
 ### Pokretanje iz čistog klona
 
 Potrebni su Git i pokrenut Docker Desktop sa Docker Compose-om. Iz korena repozitorijuma:
