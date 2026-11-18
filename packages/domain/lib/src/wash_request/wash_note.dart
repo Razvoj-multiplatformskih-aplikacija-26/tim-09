@@ -9,6 +9,8 @@ import '../result.dart';
 final class WashNote {
   const WashNote._(this.text);
 
+  const WashNote.existing(this.text);
+
   static const maxLength = 300;
 
   final String text;
@@ -16,7 +18,7 @@ final class WashNote {
   static Result<WashNote> parse(String input) {
     final text = input.trim();
     final length = text.characters.length;
-    if (length > maxLength) return Failure(NoteTooLong(length));
+    if (length > maxLength) return Failure(NoteTooLong(length, maxLength: maxLength));
     return Success(WashNote._(text));
   }
 

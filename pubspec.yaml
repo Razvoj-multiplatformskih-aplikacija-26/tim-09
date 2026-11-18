@@ -8,6 +8,9 @@ environment:
 workspace:
   - apps/mobile
   - apps/backoffice
+  - apps/server
+  - packages/contracts
+  - packages/api_mapping
   - packages/domain
   - packages/use_cases
   - packages/blocs

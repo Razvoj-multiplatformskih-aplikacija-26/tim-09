@@ -1,4 +1,5 @@
 import '../errors.dart';
+import '../permissions.dart';
 import '../result.dart';
 import '../user.dart';
 import '../identifiers.dart';
@@ -20,15 +21,21 @@ bool clientMayStillCancel(WashRequest request, {required DateTime now}) => switc
 };
 
 /// Klijent otkazuje samo svoj zahtev i to dok pranje nije počelo; osoblje može uvek.
-bool mayCancel(User by, WashRequest request) =>
-    by.role.isStaff || (by.id == request.clientId && request.status is! InProgress);
+bool mayCancel(User by, WashRequest request) => mayCancelRequest(by, request);
 
 /// Redosled provera: ovlašćenje → prelaz → rok.
 Result<WashRequest> cancelRequest(WashRequest request, {required User by, required DateTime now, String reason = ''}) {
   if (!mayCancel(by, request)) return const Failure(NotAllowed());
   final next = Cancelled(reason: reason, cancelledBy: by.id, at: now);
   if (!canTransition(request.status, next)) return Failure(InvalidTransition(from: request.status, to: next));
-  if (by.role == Role.client && !clientMayStillCancel(request, now: now)) return const Failure(CancellationTooLate());
+  if (by.role == Role.client && !clientMayStillCancel(request, now: now)) {
+    return Failure(
+      CancellationTooLate(
+        noticeMinutes: cancellationNotice.inMinutes,
+        washerLateAfterMinutes: washerLateAfter.inMinutes,
+      ),
+    );
+  }
   return Success(request.copyWith(status: next));
 }
 
@@ -48,18 +55,18 @@ Result<WashRequest> acceptRequest(
   required DateTime now,
   required List<WashRequest> all,
 }) {
-  if (!by.role.isStaff) return const Failure(NotAllowed());
+  if (!mayAssignRequest(by)) return const Failure(NotAllowed());
   final next = Accepted(washerId: washer, acceptedBy: by.id, at: now);
   if (!canTransition(request.status, next)) {
     return Failure(InvalidTransition(from: request.status, to: next));
   }
-  if (washerHasActiveJob(washer, all)) return const Failure(WasherBusy());
+  if (washerHasActiveJob(washer, all)) return Failure(WasherBusy(washerId: washer));
   return Success(request.copyWith(status: next));
 }
 
 /// Dispečer vraća prihvaćen zahtev nazad u red (Accepted → Submitted).
 Result<WashRequest> releaseRequest(WashRequest request, {required User by}) {
-  if (!by.role.isStaff) return const Failure(NotAllowed());
+  if (!mayReleaseRequest(by)) return const Failure(NotAllowed());
   const next = Submitted();
   if (!canTransition(request.status, next)) {
     return Failure(InvalidTransition(from: request.status, to: next));

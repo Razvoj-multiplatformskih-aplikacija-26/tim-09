@@ -1,0 +1,10 @@
+name: carwash_server_workspace
+publish_to: none
+environment:
+  sdk: ^3.13.0
+workspace:
+  - apps/server
+  - packages/domain
+  - packages/use_cases
+  - packages/contracts
+  - packages/api_mapping

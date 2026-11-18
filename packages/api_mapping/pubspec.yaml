@@ -1,0 +1,14 @@
+name: api_mapping
+description: CarWash & Go mappings between the domain and HTTP contract.
+publish_to: none
+version: 0.1.0
+environment:
+  sdk: ^3.13.0
+resolution: workspace
+dependencies:
+  contracts:
+    path: ../contracts
+  domain:
+    path: ../domain
+dev_dependencies:
+  test: 1.31.1

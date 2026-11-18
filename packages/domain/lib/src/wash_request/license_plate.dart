@@ -8,6 +8,8 @@ import '../result.dart';
 final class LicensePlate {
   const LicensePlate._(this.value);
 
+  const LicensePlate.existing(this.value);
+
   static const example = 'BG 123-AB';
   static final _format = RegExp(r'^[A-ZČĆŽŠĐ]{2} \d{3,5}-[A-ZČĆŽŠĐ]{2}$');
 
@@ -15,7 +17,7 @@ final class LicensePlate {
 
   static Result<LicensePlate> parse(String input) {
     final value = input.trim().toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
-    if (!_format.hasMatch(value)) return const Failure(InvalidLicensePlate());
+    if (!_format.hasMatch(value)) return const Failure(InvalidLicensePlate(example: example));
     return Success(LicensePlate._(value));
   }
 
