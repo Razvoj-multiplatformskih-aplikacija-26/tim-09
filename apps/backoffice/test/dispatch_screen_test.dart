@@ -102,6 +102,17 @@ void main() {
       expect(find.text('Dodeli perača'), findsOneWidget);
     });
 
+    testWidgets('nova poruka odmah zamenjuje poruku prethodne radnje', (tester) async {
+      await pumpApp(tester);
+      await tapAndSettle(tester, tileOf('NS 882-PT'));
+      await tapAndSettle(tester, find.text('Dodeli perača'));
+      await tapAndSettle(tester, find.text('Stefan Marković'));
+      expect(find.text('Zahtev je dodeljen peraču.'), findsOneWidget);
+      await tapAndSettle(tester, find.text('Vrati u red'));
+      expect(find.text('Zahtev je vraćen u red.'), findsOneWidget);
+      expect(find.text('Zahtev je dodeljen peraču.'), findsNothing);
+    });
+
     testWidgets('vraćanje u red oslobađa perača', (tester) async {
       await pumpApp(tester);
       await tapAndSettle(tester, tileOf('BG 909-ZR'));

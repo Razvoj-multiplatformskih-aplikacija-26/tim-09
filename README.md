@@ -41,6 +41,8 @@ Serverski deo koristi Dart, Relic 1.2.0 i PostgreSQL. Zajednički paketi `contra
 
 Mobilna i backoffice aplikacija u ovoj fazi još koriste KT1 fake adaptere. Server je spreman za njihov zajednički mrežni adapter i prijavu.
 
+[Izveštaj o proverama](docs/kt2-provere.md) sadrži rezultate automatskih testova, buildova, provera pregledača i prekida servisa, kao i preostala ograničenja.
+
 ### Pokretanje iz čistog klona
 
 Potrebni su Git i pokrenut Docker Desktop sa Docker Compose-om. Iz korena repozitorijuma:

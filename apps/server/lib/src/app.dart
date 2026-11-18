@@ -18,25 +18,22 @@ final class ServerApp {
   final RequestService requests;
   final ServerConfig config;
 
-  RelicApp build() => RelicApp()
-    ..use('/', _middleware)
-    ..options('/requests', (_) => Response(204))
-    ..options('/requests/:id', (_) => Response(204))
-    ..options('/requests/:id/:action', (_) => Response(204))
-    ..options('/auth/:action', (_) => Response(204))
-    ..options('/washers', (_) => Response(204))
-    ..get('/health', _health)
-    ..post('/auth/login', _login)
-    ..get('/auth/me', _protected(_me))
-    ..post('/auth/logout', _protected(_logout))
-    ..get('/requests', _protected(_list))
-    ..get('/requests/:id', _protected(_find))
-    ..post('/requests', _protected(_create))
-    ..post('/requests/:id/cancel', _protected(_cancel))
-    ..post('/requests/:id/assign', _protected(_assign))
-    ..post('/requests/:id/release', _protected(_release))
-    ..get('/washers', _protected(_washers))
-    ..fallback = (_) => _json(404, ApiError(code: 'not_found').toJson());
+  RelicApp build() {
+    final routes = RelicRouter()
+      ..get('/health', _health)
+      ..post('/auth/login', _login)
+      ..get('/auth/me', _protected(_me))
+      ..post('/auth/logout', _protected(_logout))
+      ..get('/requests', _protected(_list))
+      ..get('/requests/:id', _protected(_find))
+      ..post('/requests', _protected(_create))
+      ..post('/requests/:id/cancel', _protected(_cancel))
+      ..post('/requests/:id/assign', _protected(_assign))
+      ..post('/requests/:id/release', _protected(_release))
+      ..get('/washers', _protected(_washers))
+      ..fallback = (_) => _json(404, ApiError(code: 'not_found').toJson());
+    return RelicApp()..any('/**', _middleware(routes.asHandler));
+  }
 
   Handler _middleware(Handler next) => (request) async {
     final origin = request.headers['origin']?.firstOrNull;
@@ -62,6 +59,9 @@ final class ServerApp {
     } catch (error, stack) {
       io.stderr.writeln('$error\n$stack');
       response = _json(500, ApiError(code: 'server_error').toJson());
+    }
+    if (response.statusCode == 405) {
+      response = _json(405, ApiError(code: 'method_not_allowed').toJson()).copyWith(headers: response.headers);
     }
     return response.copyWith(
       headers: response.headers.transform((headers) {

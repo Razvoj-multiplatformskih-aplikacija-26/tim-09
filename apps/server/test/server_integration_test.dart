@@ -410,6 +410,235 @@ void main() {
       );
     });
 
+    test('svaka zaštićena ruta proverava prijavu pre obrade podataka', () async {
+      for (final path in ['/auth/me', '/requests', '/requests/seed-1', '/washers']) {
+        expect((await client.get(base.resolve(path))).statusCode, 401, reason: path);
+      }
+      for (final path in [
+        '/auth/logout',
+        '/requests',
+        '/requests/seed-1/cancel',
+        '/requests/seed-1/assign',
+        '/requests/seed-3/release',
+      ]) {
+        expect((await post(path, {})).statusCode, 401, reason: path);
+      }
+    });
+
+    test('perač i dispečer nemaju klijentsku akciju kreiranja', () async {
+      final washer = await login('nikola');
+      final staff = await login('dispecer', application: 'backoffice');
+      for (final token in [washer, staff]) {
+        expect((await post('/requests', newRequest(), token: token)).statusCode, 403);
+      }
+      expect((await post('/requests/seed-1/assign', {'washerId': 'w-1'}, token: washer)).statusCode, 403);
+      expect((await post('/requests/seed-3/release', {}, token: washer)).statusCode, 403);
+      expect((await post('/requests/seed-3/cancel', {}, token: washer)).statusCode, 403);
+      expect((await get('/washers', washer)).statusCode, 403);
+    });
+
+    test('nepostojeći zapisi i završna stanja ne menjaju bazu', () async {
+      final token = await login('dispecer', application: 'backoffice');
+      expect((await get('/requests/missing', token)).statusCode, 404);
+      expect((await post('/requests/missing/assign', {'washerId': 'w-1'}, token: token)).statusCode, 404);
+      expect((await post('/requests/seed-1/assign', {'washerId': 'missing'}, token: token)).statusCode, 404);
+      expect((await post('/requests/seed-1/release', {}, token: token)).statusCode, 409);
+      expect((await post('/requests/seed-3/assign', {'washerId': 'w-1'}, token: token)).statusCode, 409);
+      for (final id in ['seed-5', 'seed-9']) {
+        expect((await post('/requests/$id/cancel', {}, token: token)).statusCode, 409);
+      }
+      expect((await database.execute('SELECT COUNT(*) FROM wash_requests')).single.single, 12);
+      expect((await PostgresRequestStore(database).find(const WashRequestId('seed-1')))!.status, isA<Submitted>());
+    });
+
+    test('dodela, vraćanje i ponovno dodeljivanje čuvaju stanje i autora', () async {
+      final owner = await login('marko');
+      final staff = await login('dispecer', application: 'backoffice');
+      final first = await post('/requests/seed-1/assign', {'washerId': 'w-1'}, token: staff);
+      expect(first.statusCode, 200);
+      var dto = RequestResponse.fromJson(decoded(await get('/requests/seed-1', owner))).request;
+      expect(dto.status.type, 'accepted');
+      expect(dto.status.data['acceptedBy'], 'u-dispatcher');
+      expect((await post('/requests/seed-1/release', {}, token: staff)).statusCode, 200);
+      dto = RequestResponse.fromJson(decoded(await get('/requests/seed-1', owner))).request;
+      expect(dto.status.toJson(), {'type': 'submitted'});
+      expect((await post('/requests/seed-1/assign', {'washerId': 'w-1'}, token: staff)).statusCode, 200);
+      final cancelled = await post('/requests/seed-4/cancel', {'reason': 'Otkazao dispečer'}, token: staff);
+      expect(cancelled.statusCode, 200);
+      expect(RequestResponse.fromJson(decoded(cancelled)).request.status.data['cancelledBy'], 'u-dispatcher');
+      final washers = decoded(await get('/washers', staff))['items'] as List<Object?>;
+      expect(washers.map(jsonObject).singleWhere((item) => item['id'] == 'w-3')['hasActiveJob'], isFalse);
+    });
+
+    test('granični dozvoljeni termini i cene proveravaju se preko HTTP-a', () async {
+      final token = await login('marko');
+      final bodies = [
+        newRequest(start: initialNow.add(const Duration(hours: 1))),
+        newRequest(start: initialNow.add(const Duration(days: 7))),
+        {...newRequest(start: businessDate(2026, 11, 19, 18, 30).toUtc()), 'tier': 'professional'},
+      ];
+      for (final body in bodies) {
+        final response = await post('/requests', body, token: token);
+        expect(response.statusCode, 201, reason: response.body);
+        final dto = RequestResponse.fromJson(decoded(response)).request;
+        expect(dto.priceRsd, body['tier'] == 'professional' ? 2900 : 1400);
+        expect(dto.durationMinutes, body['tier'] == 'professional' ? 90 : 45);
+        expect((await post('/requests/${dto.id}/cancel', {}, token: token)).statusCode, 200);
+      }
+    });
+
+    test('dužina napomene broji Unicode znakove i uklanja spoljne razmake', () async {
+      final token = await login('marko');
+      final emoji = List.filled(300, '👨‍👩‍👧‍👦').join();
+      final response = await post('/requests', newRequest(note: '  $emoji  '), token: token);
+      expect(response.statusCode, 201, reason: response.body);
+      expect(RequestResponse.fromJson(decoded(response)).request.note, emoji);
+      final rejected = await post('/requests', newRequest(note: '$emoji👨‍👩‍👧‍👦'), token: token);
+      expect(rejected.statusCode, 422);
+      expect(jsonObject(decoded(rejected)['details']), {'actualLength': 301, 'maxLength': 300});
+    });
+
+    test('neispravni tipovi, datumi, parametri i SQL tekst ostaju kontrolisane greške', () async {
+      final token = await login('marko');
+      for (final query in [
+        'limit=0',
+        'limit=-1',
+        'limit=abc',
+        'offset=-1',
+        'offset=1.5',
+        'scope=other',
+        'status=unknown',
+        'status=submitted%27%20OR%201%3D1',
+      ]) {
+        expect((await get('/requests?$query', token)).statusCode, 400, reason: query);
+      }
+      for (final body in <Map<String, Object?>>[
+        {...newRequest(), 'start': '2026-11-31T09:00:00Z'},
+        {...newRequest(), 'start': '2026-11-19T25:00:00Z'},
+        {...newRequest(), 'start': '2026-11-19T09:00:00'},
+        {...newRequest(), 'vehicle': null},
+        {...newRequest(), 'note': 123},
+        {
+          ...newRequest(),
+          'address': {'text': 'Adresa', 'clientId': 'u-other'},
+        },
+      ]) {
+        final response = await post('/requests', body, token: token);
+        expect(response.statusCode, 400, reason: '$body: ${response.body}');
+      }
+      expect((await get('/requests/%27%20OR%201%3D1--', token)).statusCode, 404);
+      final injection = await post('/auth/login', {
+        'username': "' OR 1=1 --",
+        'password': 'anything',
+        'application': 'mobile',
+        'sessionTransport': 'bearer',
+      });
+      expect(injection.statusCode, 401);
+      expect((await database.execute('SELECT COUNT(*) FROM wash_requests')).single.single, 12);
+    });
+
+    test('opoziv jedne sesije ne briše druge, a trenutna uloga se čita iz baze', () async {
+      final first = await login('marko');
+      final second = await login('marko');
+      expect((await post('/auth/logout', {}, token: first)).statusCode, 204);
+      expect((await get('/auth/me', first)).statusCode, 401);
+      expect((await get('/auth/me', second)).statusCode, 200);
+      final staff = await login('dispecer', application: 'backoffice');
+      await database.execute("UPDATE users SET role = 'client' WHERE id = 'u-dispatcher'");
+      expect((await post('/requests/seed-1/assign', {'washerId': 'w-1'}, token: staff)).statusCode, 403);
+      expect(jsonObject(decoded(await get('/auth/me', staff))['user'])['role'], 'client');
+    });
+
+    test('Bearer i cookie se ne mešaju i ne mogu da zamene način izdavanja', () async {
+      final token = await login('marko');
+      final mixed = await client.get(
+        base.resolve('/auth/me'),
+        headers: {'Authorization': 'Bearer $token', 'Cookie': 'carwash_session=$token'},
+      );
+      expect(mixed.statusCode, 400);
+      expect(
+        (await client.get(base.resolve('/auth/me'), headers: {'Cookie': 'carwash_session=$token'})).statusCode,
+        401,
+      );
+      expect(
+        (await client.get(base.resolve('/auth/me'), headers: {'Authorization': 'Basic anything'})).statusCode,
+        401,
+      );
+      expect(
+        (await client.get(
+          base.resolve('/auth/me'),
+          headers: {'Cookie': 'carwash_session=a; carwash_session=b'},
+        )).statusCode,
+        400,
+      );
+    });
+
+    test('32 istovremena kreiranja sa istim nalogom daju jedno preostalo mesto', () async {
+      final token = await login('marko');
+      final responses = await Future.wait(List.generate(32, (_) => post('/requests', newRequest(), token: token)));
+      expect(responses.where((response) => response.statusCode == 201).length, 1);
+      expect(
+        responses
+            .where((response) => response.statusCode == 409 && decoded(response)['code'] == 'too_many_pending_requests')
+            .length,
+        31,
+      );
+      final count = await database.execute(
+        "SELECT COUNT(*) FROM wash_requests WHERE client_id = 'u-client' AND status IN ('submitted', 'accepted')",
+      );
+      expect(count.single.single, 3);
+    });
+
+    test('20 različitih klijenata konkuriše za jednog perača bez dvostruke dodele', () async {
+      await database.execute("""
+        INSERT INTO users (id, username, password_hash, role)
+        SELECT 'stress-client-' || n, 'stress-user-' || n, u.password_hash, 'client'
+        FROM generate_series(1, 20) AS n CROSS JOIN users u WHERE u.id = 'u-client'
+      """);
+      await database.execute("""
+        INSERT INTO wash_requests (
+          id, client_id, vehicle_type, plate, tier, address, start_at, duration_minutes, created_at, status
+        )
+        SELECT 'stress-request-' || n, 'stress-client-' || n, vehicle_type, plate, tier,
+          address, start_at, duration_minutes, created_at, 'submitted'
+        FROM generate_series(1, 20) AS n CROSS JOIN wash_requests WHERE id = 'seed-1'
+      """);
+      final token = await login('dispecer', application: 'backoffice');
+      final responses = await Future.wait(
+        List.generate(20, (i) => post('/requests/stress-request-${i + 1}/assign', {'washerId': 'w-1'}, token: token)),
+      );
+      expect(responses.where((response) => response.statusCode == 200).length, 1);
+      expect(
+        responses.where((response) => response.statusCode == 409 && decoded(response)['code'] == 'washer_busy').length,
+        19,
+      );
+      expect(
+        (await database.execute(
+          "SELECT COUNT(*) FROM wash_requests WHERE washer_id = 'w-1' AND status IN ('accepted', 'in_progress')",
+        )).single.single,
+        1,
+      );
+    });
+
+    test('CORS i JSON greške obuhvataju nepostojeću rutu i pogrešan HTTP metod', () async {
+      const origin = 'http://localhost:3000';
+      final missing = await client.get(base.resolve('/missing'), headers: {'Origin': origin});
+      expect(missing.statusCode, 404);
+      expect(missing.headers['access-control-allow-origin'], origin);
+      expect(decoded(missing)['code'], 'not_found');
+      final wrongMethod = await client.put(base.resolve('/requests'), headers: {'Origin': origin});
+      expect(wrongMethod.statusCode, 405);
+      expect(wrongMethod.headers['access-control-allow-origin'], origin);
+      expect(decoded(wrongMethod)['code'], 'method_not_allowed');
+      final preflight = await client.send(
+        http.Request('OPTIONS', base.resolve('/missing'))
+          ..headers.addAll({'Origin': origin, 'Access-Control-Request-Method': 'POST'}),
+      );
+      expect(preflight.statusCode, 204);
+      expect(preflight.headers['access-control-allow-origin'], origin);
+      await preflight.stream.drain<void>();
+    });
+
     test('greške i neispravni zahtevi imaju JSON i CORS zaglavlja', () async {
       final token = await login('marko');
       final invalid = await get('/requests?limit=101', token);

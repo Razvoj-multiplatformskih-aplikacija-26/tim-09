@@ -1,7 +1,7 @@
 import 'package:domain/domain.dart';
 
 /// Ponedeljak u 9:00 — „sada“ u svim testovima.
-final now = DateTime(2026, 10, 26, 9);
+final now = businessDate(2026, 10, 26, 9);
 
 const client = User(id: UserId('u-client'), username: 'marko', role: Role.client);
 const otherClient = User(id: UserId('u-other'), username: 'ana', role: Role.client);

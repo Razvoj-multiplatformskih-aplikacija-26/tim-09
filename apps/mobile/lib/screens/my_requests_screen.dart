@@ -267,8 +267,8 @@ class _ActiveCard extends StatelessWidget {
               const Divider(),
               Row(
                 children: [
-                  Text(formatPrice(request.price.priceRsd), style: theme.textTheme.titleMedium),
-                  const Spacer(),
+                  Expanded(child: Text(formatPrice(request.price.priceRsd), style: theme.textTheme.titleMedium)),
+                  const SizedBox(width: 8),
                   _CancelAction(busy: busy, onCancel: onCancel),
                 ],
               ),

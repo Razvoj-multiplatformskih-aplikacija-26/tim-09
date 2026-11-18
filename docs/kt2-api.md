@@ -69,6 +69,8 @@ Kreiranje ne šalje vlasnika, ulogu, cenu, trajanje ili stanje. Server ih određ
 
 Datum je primer. `CreateRequest` kodira vreme u UTC. Radno vreme je u Europe/Belgrade. `inBusinessTime` i `businessDate` su zajedničke domenske pomoćne funkcije; pri prikazu i izboru termina potrebno je koristiti poslovnu zonu.
 
+JSON datum mora imati postojeći kalendarski datum, sekunde i vremensku zonu (`Z` ili eksplicitni offset). Nemogući datumi i vremena se odbijaju, umesto da se automatski prebace u sledeći mesec ili dan. DTO odgovori dopuštaju dodatna polja radi kompatibilnosti, dok se neočekivana polja u komandama odbijaju.
+
 `WashRequestDto` dodatno ima id, clientId, slot.start, slot.durationMinutes, createdAt, priceRsd, currency i status. Novac je ceo broj dinara, currency je RSD. Status je objekat sa type i podacima iz postojećih domenskih stanja. `StatusDto` čuva oznaku i podatke; oba smera prevoda su u mapper-u.
 
 Lista perača vraća `{"items": [...]}`; svaki `WasherDto` ima id, name i hasActiveJob. Dostupnost se računa nad svim aktivnim poslovima. UI ne računa zauzetost samo iz trenutne stranice zahteva.
@@ -87,11 +89,14 @@ Greška je na vrhu JSON-a, bez error omotača i bez gotove korisničke poruke. `
 | 401 | invalid_credentials, unauthenticated, session_expired, session_revoked |
 | 403 | wrong_application, not_allowed |
 | 404 | not_found |
+| 405 | method_not_allowed |
 | 409 | washer_busy, too_many_pending_requests, invalid_transition |
 | 422 | invalid_license_plate, address_missing, note_too_long, slot_too_soon, slot_too_far, slot_not_on_half_hour, outside_working_hours, cancellation_too_late |
 | 500 | server_error |
 
 Detalji: note_too_long nosi actualLength/maxLength; slot_too_soon minNoticeMinutes/earliestAllowedStart; slot_too_far maxAdvanceDays/latestAllowedStart; outside_working_hours openingHour/closingHour/businessTimeZone; cancellation_too_late noticeMinutes/washerLateAfterMinutes; too_many_pending_requests maxPending/currentPending; washer_busy washerId. InvalidTransition sadrži potpune from/to status objekte.
+
+JSON oblik greške i CORS zaglavlja važe i za nepostojeću rutu i pogrešan HTTP metod. Preflight `OPTIONS` obrađuje se pre rutiranja.
 
 ## Sledeći koraci za klijente
 

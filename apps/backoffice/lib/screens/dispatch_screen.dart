@@ -27,7 +27,9 @@ class DispatchScreen extends StatelessWidget {
     };
     // Uska traka na sredini, da ne prekrije dugmad u panelu sa detaljima.
     final width = MediaQuery.sizeOf(context).width - 2 * CarWashTheme.gutter;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), width: width.clamp(0, 440)));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message), width: width.clamp(0, 440)));
     context.read<DispatchBloc>().add(const DispatchNoticeAcknowledged());
   }
 

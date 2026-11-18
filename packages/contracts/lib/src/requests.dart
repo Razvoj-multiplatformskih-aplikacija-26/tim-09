@@ -4,7 +4,6 @@ final class VehicleDto {
   const VehicleDto({required this.type, required this.plate});
 
   factory VehicleDto.fromJson(Map<String, Object?> json) {
-    jsonFields(json, {'type', 'plate'});
     return VehicleDto(type: jsonString(json, 'type'), plate: jsonString(json, 'plate'));
   }
 
@@ -27,8 +26,10 @@ final class CreateRequest {
     jsonFields(json, {'vehicle', 'tier', 'address', 'start', 'note'});
     final address = jsonObject(json['address']);
     jsonFields(address, {'text'});
+    final vehicle = jsonObject(json['vehicle']);
+    jsonFields(vehicle, {'type', 'plate'});
     return CreateRequest(
-      vehicle: VehicleDto.fromJson(jsonObject(json['vehicle'])),
+      vehicle: VehicleDto.fromJson(vehicle),
       tier: jsonString(json, 'tier'),
       address: jsonString(address, 'text'),
       start: jsonInstant(json, 'start'),

@@ -75,6 +75,30 @@ void main() {
     expect(find.text('Pošalji zahtev'), findsOneWidget);
   });
 
+  testWidgets('prazna forma prikazuje obavezna polja bez slanja', (tester) async {
+    await pumpApp(tester);
+    await openForm(tester);
+    await tester.tap(find.text('Pošalji zahtev'));
+    await tester.pumpAndSettle();
+    expect(find.text('Unesite adresu na kojoj je vozilo.'), findsOneWidget);
+    expect(find.text('Registarska oznaka mora biti u formatu „BG 123-AB“.'), findsOneWidget);
+    expect(find.text('Izaberite datum i vreme.'), findsOneWidget);
+    expect(find.text('Zahtev je poslat.'), findsNothing);
+  });
+
+  testWidgets('neuspelo slanje čuva unos i sledeći pokušaj može uspeti', (tester) async {
+    final dependencies = await pumpApp(tester);
+    dependencies.fakeCarWash!.failingRequests = 1;
+    await submitRequest(tester, plate: 'BG 555-XY');
+    expect(find.text('Slanje nije uspelo. Pokušajte ponovo.'), findsOneWidget);
+    final field = tester.widget<TextFormField>(find.widgetWithText(TextFormField, 'Registarska oznaka'));
+    expect(field.controller!.text, 'BG 555-XY');
+    await tester.tap(find.text('Pošalji zahtev'));
+    await tester.pumpAndSettle();
+    expect(find.text('Zahtev je poslat.'), findsOneWidget);
+    expect(find.textContaining('BG 555-XY'), findsOneWidget);
+  });
+
   testWidgets('kalendar ide po satu aplikacije i nudi samo dane koje pravilo o terminu dozvoljava', (tester) async {
     await pumpApp(tester);
     await openForm(tester);
