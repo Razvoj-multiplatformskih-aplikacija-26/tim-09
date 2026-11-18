@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import '../errors.dart';
+import '../business_time.dart';
 import '../result.dart';
 
 /// R3 · Termin pranja: najranije [minNotice] od sada, najkasnije [maxAdvance] unapred,
@@ -24,12 +25,19 @@ final class WashSlot {
   DateTime get end => start.add(duration);
 
   static Result<WashSlot> parse(DateTime start, {required Duration duration, required DateTime now}) {
-    if (start.isBefore(now.add(minNotice))) return const Failure(SlotTooSoon());
-    if (start.isAfter(now.add(maxAdvance))) return const Failure(SlotTooFar());
-    if (start.minute % 30 != 0 || start.second != 0) return const Failure(SlotNotOnHalfHour());
-    final closing = DateTime(start.year, start.month, start.day, closingHour);
-    if (start.hour < openingHour || start.add(duration).isAfter(closing)) {
-      return const Failure(OutsideWorkingHours());
+    if (start.isBefore(now.add(minNotice))) {
+      return Failure(SlotTooSoon(minNoticeMinutes: minNotice.inMinutes, earliestAllowedStart: now.add(minNotice)));
+    }
+    if (start.isAfter(now.add(maxAdvance))) {
+      return Failure(SlotTooFar(maxAdvanceDays: maxAdvance.inDays, latestAllowedStart: now.add(maxAdvance)));
+    }
+    if (start.minute % 30 != 0 || start.second != 0 || start.millisecond != 0 || start.microsecond != 0) {
+      return const Failure(SlotNotOnHalfHour());
+    }
+    final local = inBusinessTime(start);
+    final closing = businessDate(local.year, local.month, local.day, closingHour);
+    if (local.hour < openingHour || start.add(duration).isAfter(closing)) {
+      return const Failure(OutsideWorkingHours(openingHour: openingHour, closingHour: closingHour));
     }
     return Success(WashSlot._(start, duration));
   }

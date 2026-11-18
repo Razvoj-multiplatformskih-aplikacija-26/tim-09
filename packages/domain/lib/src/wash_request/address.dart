@@ -8,6 +8,8 @@ import '../result.dart';
 final class Address {
   const Address._(this.text);
 
+  const Address.existing(this.text);
+
   final String text;
 
   static Result<Address> parse(String input) {

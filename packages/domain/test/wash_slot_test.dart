@@ -15,18 +15,18 @@ void main() {
     });
 
     test('više od 7 dana unapred pada', () {
-      expect(slotAt(DateTime(2026, 11, 2, 10)).errorOrNull, isA<SlotTooFar>());
+      expect(slotAt(businessDate(2026, 11, 2, 10)).errorOrNull, isA<SlotTooFar>());
     });
 
     test('termin počinje na :00 ili :30', () {
-      expect(slotAt(DateTime(2026, 10, 27, 10, 30)).isSuccess, isTrue);
-      expect(slotAt(DateTime(2026, 10, 27, 10, 15)).errorOrNull, isA<SlotNotOnHalfHour>());
+      expect(slotAt(businessDate(2026, 10, 27, 10, 30)).isSuccess, isTrue);
+      expect(slotAt(businessDate(2026, 10, 27, 10, 15)).errorOrNull, isA<SlotNotOnHalfHour>());
     });
 
     test('pre 8 h i završetak posle 20 h padaju', () {
-      expect(slotAt(DateTime(2026, 10, 27, 7, 30)).errorOrNull, isA<OutsideWorkingHours>());
-      expect(slotAt(DateTime(2026, 10, 27, 19)).isSuccess, isTrue); // 19:00 + 45 min = 19:45
-      expect(slotAt(DateTime(2026, 10, 27, 19, 30)).errorOrNull, isA<OutsideWorkingHours>());
+      expect(slotAt(businessDate(2026, 10, 27, 7, 30)).errorOrNull, isA<OutsideWorkingHours>());
+      expect(slotAt(businessDate(2026, 10, 27, 19)).isSuccess, isTrue); // 19:00 + 45 min = 19:45
+      expect(slotAt(businessDate(2026, 10, 27, 19, 30)).errorOrNull, isA<OutsideWorkingHours>());
     });
   });
 }

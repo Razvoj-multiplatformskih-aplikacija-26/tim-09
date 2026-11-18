@@ -1,4 +1,7 @@
 export 'src/errors.dart';
+export 'src/business_time.dart';
+export 'src/permissions.dart';
+export 'src/washer.dart';
 export 'src/identifiers.dart';
 export 'src/pricing.dart';
 export 'src/result.dart';
@@ -12,3 +15,4 @@ export 'src/wash_request/wash_note.dart';
 export 'src/wash_request/wash_request.dart';
 export 'src/wash_request/wash_slot.dart';
 export 'src/wash_request/wash_status.dart';
+export 'src/wash_request/create_request.dart';

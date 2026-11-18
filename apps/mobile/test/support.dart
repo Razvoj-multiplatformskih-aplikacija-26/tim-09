@@ -9,13 +9,22 @@ import 'package:use_cases/use_cases.dart';
 /// Ponedeljak u 9:00, da seed i pravila uvek daju iste rezultate.
 final testNow = DateTime(2026, 10, 26, 9);
 
-Future<AppDependencies> pumpApp(WidgetTester tester) async {
+Future<AppDependencies> pumpApp(
+  WidgetTester tester, {
+  Size size = const Size(1080, 2400),
+  Duration latency = Duration.zero,
+  bool settle = true,
+}) async {
   await initializeDateFormatting(serbianLatin);
-  tester.view.physicalSize = const Size(1080, 2400);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final dependencies = AppDependencies.fake(clock: FixedClock(testNow), latency: Duration.zero);
+  final dependencies = AppDependencies.fake(clock: FixedClock(testNow), latency: latency);
   await tester.pumpWidget(CarWashApp(dependencies: dependencies));
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
   return dependencies;
 }

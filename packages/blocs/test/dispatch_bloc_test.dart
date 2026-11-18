@@ -156,7 +156,10 @@ void main() {
         act: (bloc) => bloc.add(DispatchAcceptRequested(pending.id, washer)),
         expect: () => [
           DispatchLoaded(requests: [pending, busy], busyId: pending.id),
-          DispatchLoaded(requests: [pending, busy], notice: const DispatchActionRejected(WasherBusy())),
+          DispatchLoaded(
+            requests: [pending, busy],
+            notice: const DispatchActionRejected(WasherBusy(washerId: WasherId('w-1'))),
+          ),
         ],
       );
     }

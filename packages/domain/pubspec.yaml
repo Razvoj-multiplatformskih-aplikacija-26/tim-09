@@ -10,6 +10,7 @@ resolution: workspace
 dependencies:
   characters: 1.4.1
   meta: 1.19.0
+  timezone: 0.11.2
 
 dev_dependencies:
   test: 1.31.1

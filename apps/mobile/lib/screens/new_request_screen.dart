@@ -278,28 +278,39 @@ class _SummaryBar extends StatelessWidget {
       ),
       child: SafeArea(
         minimum: const EdgeInsets.fromLTRB(CarWashTheme.gutter, 12, CarWashTheme.gutter, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Procena', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-                  Text(
-                    '${formatPrice(estimate.priceRsd)} · ${formatDuration(estimate.duration)}',
-                    style: theme.textTheme.titleMedium,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            FilledButton(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final summary = Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Procena', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                Text(
+                  '${formatPrice(estimate.priceRsd)} · ${formatDuration(estimate.duration)}',
+                  style: theme.textTheme.titleMedium,
+                ),
+              ],
+            );
+            final submit = FilledButton(
               onPressed: submitting ? null : onSubmit,
               style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 24)),
               child: Text(submitting ? 'Slanje…' : 'Pošalji zahtev'),
-            ),
-          ],
+            );
+            if (constraints.maxWidth < 360) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [summary, const SizedBox(height: 12), submit],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: summary),
+                const SizedBox(width: 12),
+                submit,
+              ],
+            );
+          },
         ),
       ),
     );

@@ -47,7 +47,10 @@ void main() {
     'tri zahteva na čekanju → Rejected(TooManyPendingRequests)',
     build: () => blocWith(FakeWashRequests([pending('wr-1'), pending('wr-2'), pending('wr-3')])),
     act: (bloc) => bloc.add(WashRequestFormSubmitted(draft())),
-    expect: () => [const WashRequestFormSubmitting(), const WashRequestFormRejected(TooManyPendingRequests())],
+    expect: () => [
+      const WashRequestFormSubmitting(),
+      const WashRequestFormRejected(TooManyPendingRequests(currentPending: 3)),
+    ],
   );
 
   blocTest<WashRequestFormBloc, WashRequestFormState>(
