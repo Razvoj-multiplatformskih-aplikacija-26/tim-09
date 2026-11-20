@@ -158,7 +158,7 @@ class _Row extends StatelessWidget {
 Future<void> assignWasher(BuildContext context, WashRequest request) async {
   final bloc = context.read<DispatchBloc>();
   final state = bloc.state;
-  final washers = state is DispatchLoaded ? state.washers : const <Washer>[];
+  final washers = state is DispatchReady ? state.washers : const <Washer>[];
   final washer = await showDialog<WasherId>(
     context: context,
     builder: (context) => SimpleDialog(

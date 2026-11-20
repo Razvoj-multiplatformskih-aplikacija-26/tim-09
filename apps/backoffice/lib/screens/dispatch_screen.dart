@@ -349,6 +349,21 @@ String filterLabel(RequestStatusFilter? filter) => switch (filter) {
   RequestStatusFilter.cancelled => 'Otkazan',
 };
 
+enum _FilterChoice {
+  all(null),
+  submitted(RequestStatusFilter.submitted),
+  accepted(RequestStatusFilter.accepted),
+  inProgress(RequestStatusFilter.inProgress),
+  completed(RequestStatusFilter.completed),
+  cancelled(RequestStatusFilter.cancelled);
+
+  const _FilterChoice(this.filter);
+
+  final RequestStatusFilter? filter;
+
+  static _FilterChoice of(RequestStatusFilter? filter) => values.firstWhere((choice) => choice.filter == filter);
+}
+
 class _FilterMenu extends StatelessWidget {
   const _FilterMenu();
 
@@ -356,13 +371,13 @@ class _FilterMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<DispatchBloc, DispatchState>(
       buildWhen: (previous, current) => previous.filter != current.filter,
-      builder: (context, state) => PopupMenuButton<RequestStatusFilter?>(
+      builder: (context, state) => PopupMenuButton<_FilterChoice>(
         tooltip: 'Filter stanja',
-        initialValue: state.filter,
-        onSelected: (filter) => context.read<DispatchBloc>().add(DispatchFilterChanged(filter)),
+        initialValue: _FilterChoice.of(state.filter),
+        onSelected: (choice) => context.read<DispatchBloc>().add(DispatchFilterChanged(choice.filter)),
         itemBuilder: (context) => [
-          for (final filter in <RequestStatusFilter?>[null, ...RequestStatusFilter.values])
-            PopupMenuItem(value: filter, child: Text(filterLabel(filter))),
+          for (final choice in _FilterChoice.values)
+            PopupMenuItem(value: choice, child: Text(filterLabel(choice.filter))),
         ],
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),

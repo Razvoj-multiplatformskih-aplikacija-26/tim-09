@@ -21,8 +21,8 @@ class RequestDetailScreen extends StatelessWidget {
       child: BlocBuilder<RequestDetailBloc, RequestDetailState>(
         builder: (context, state) {
           final dispatch = context.watch<DispatchBloc>().state;
-          final loaded = dispatch is DispatchLoaded ? dispatch : null;
-          String washerName(WasherId washer) => loaded?.washerName(washer) ?? washer.value;
+          final board = dispatch is DispatchReady ? dispatch : null;
+          String washerName(WasherId washer) => board?.washerName(washer) ?? washer.value;
           return Scaffold(
             appBar: AppBar(title: Text('Zahtev ${id.value}')),
             body: switch (state) {
@@ -39,8 +39,8 @@ class RequestDetailScreen extends StatelessWidget {
               ),
             },
             // Dugmad su u donjoj traci, pa obaveštenje iskače iznad njih umesto da ih prekrije.
-            bottomNavigationBar: switch ((state, loaded)) {
-              (RequestDetailLoaded(:final request), final DispatchLoaded board) => RequestActions(
+            bottomNavigationBar: switch ((state, board)) {
+              (RequestDetailLoaded(:final request), final DispatchReady board) => RequestActions(
                 request: request,
                 busy: board.busyId == request.id,
               ),
