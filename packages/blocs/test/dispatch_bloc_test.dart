@@ -88,7 +88,7 @@ void main() {
       'bez zahteva → Empty',
       build: () => blocWith(repo([])),
       act: (bloc) => bloc.add(const DispatchRequested()),
-      expect: () => [const DispatchLoading(), const DispatchEmpty()],
+      expect: () => [const DispatchLoading(), DispatchEmpty(washers: washersFor(const []))],
     );
 
     blocTest<DispatchBloc, DispatchState>(
@@ -331,4 +331,95 @@ void main() {
       loaded([pending]),
     ],
   );
+
+  group('prazna tabla i dalje nosi kontekst radnji', () {
+    final taken2 = request(
+      'wr-2',
+      status: Accepted(washerId: washer, acceptedBy: dispatcher.id, at: now),
+      hour: 1,
+    );
+
+    blocTest<DispatchBloc, DispatchState>(
+      'dodela jedinog prijavljenog pod filterom: prazna tabla zadržava perače i poruku',
+      build: () => blocWith(repo([pending])),
+      act: (bloc) async {
+        bloc.add(const DispatchFilterChanged(RequestStatusFilter.submitted));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(DispatchAcceptRequested(pending.id, washer));
+      },
+      skip: 2,
+      expect: () {
+        final assigned = pending.copyWith(
+          status: Accepted(washerId: washer, acceptedBy: dispatcher.id, at: now),
+        );
+        return [
+          loaded([pending], filter: RequestStatusFilter.submitted, busyId: pending.id),
+          DispatchEmpty(
+            washers: washersFor([assigned]),
+            filter: RequestStatusFilter.submitted,
+            notice: RequestAssigned(assigned),
+          ),
+        ];
+      },
+    );
+
+    blocTest<DispatchBloc, DispatchState>(
+      'vraćanje u red sa prazne table pod filterom „Prihvaćen“ radi i oslobađa perača',
+      build: () => blocWith(repo([taken2])),
+      act: (bloc) async {
+        bloc.add(const DispatchFilterChanged(RequestStatusFilter.accepted));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(DispatchReleaseRequested(taken2.id));
+      },
+      skip: 2,
+      expect: () {
+        final released = taken2.copyWith(status: const Submitted());
+        return [
+          loaded([taken2], filter: RequestStatusFilter.accepted, busyId: taken2.id),
+          DispatchEmpty(
+            washers: washersFor([released]),
+            filter: RequestStatusFilter.accepted,
+            notice: RequestReleased(released),
+          ),
+        ];
+      },
+      verify: (bloc) => expect((bloc.state as DispatchReady).isWasherBusy(washer), isFalse),
+    );
+
+    blocTest<DispatchBloc, DispatchState>(
+      'radnja kreće i sa već prazne table',
+      build: () => blocWith(repo([taken2])),
+      seed: () => DispatchEmpty(washers: washersFor([taken2])),
+      act: (bloc) => bloc.add(DispatchReleaseRequested(taken2.id)),
+      expect: () => [
+        DispatchEmpty(washers: washersFor([taken2]), busyId: taken2.id),
+        isA<DispatchLoaded>().having((s) => s.notice, 'notice', isA<RequestReleased>()),
+      ],
+    );
+
+    blocTest<DispatchBloc, DispatchState>(
+      'potvrda poruke ne briše perače prazne table',
+      build: () => blocWith(repo([])),
+      seed: () => DispatchEmpty(washers: washersFor([taken2]), notice: RequestAssigned(taken2)),
+      act: (bloc) => bloc.add(const DispatchNoticeAcknowledged()),
+      expect: () => [
+        DispatchEmpty(washers: washersFor([taken2])),
+      ],
+      verify: (bloc) => expect((bloc.state as DispatchReady).isWasherBusy(washer), isTrue),
+    );
+
+    blocTest<DispatchBloc, DispatchState>(
+      'neuspela radnja na praznoj tabli uklanja busy i javlja razlog',
+      build: () => blocWith(repo([taken2])..failingRequests = 1),
+      seed: () => DispatchEmpty(washers: washersFor([taken2]), filter: RequestStatusFilter.accepted),
+      act: (bloc) => bloc.add(DispatchReleaseRequested(taken2.id)),
+      skip: 1,
+      expect: () => [
+        isA<DispatchEmpty>()
+            .having((s) => s.busyId, 'busyId', isNull)
+            .having((s) => s.washers, 'washers', isNotEmpty)
+            .having((s) => s.notice, 'notice', isA<DispatchActionFailed>()),
+      ],
+    );
+  });
 }

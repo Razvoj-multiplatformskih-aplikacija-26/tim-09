@@ -34,22 +34,25 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
   int _offset = 0;
   RequestStatusFilter? _filter;
   WashRequestId? _selectedId;
+  int _generation = 0;
+
+  bool get _acting => state is DispatchReady && (state as DispatchReady).busyId != null;
 
   Future<void> _onRequested(DispatchRequested event, Emitter<DispatchState> emit) async {
-    if (state case DispatchLoaded(busyId: _?)) return;
+    if (_acting) return;
     emit(DispatchLoading(filter: _filter));
     await _reload(emit);
   }
 
   Future<void> _onPageRequested(DispatchPageRequested event, Emitter<DispatchState> emit) async {
-    if (state case DispatchLoaded(busyId: _?)) return;
+    if (_acting) return;
     _offset = event.offset < 0 ? 0 : event.offset;
     emit(DispatchLoading(filter: _filter));
     await _reload(emit);
   }
 
   Future<void> _onFilterChanged(DispatchFilterChanged event, Emitter<DispatchState> emit) async {
-    if (state case DispatchLoaded(busyId: _?)) return;
+    if (_acting) return;
     _filter = event.filter;
     _offset = 0;
     emit(DispatchLoading(filter: _filter));
@@ -65,14 +68,7 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
   }
 
   void _onNoticeAcknowledged(DispatchNoticeAcknowledged event, Emitter<DispatchState> emit) {
-    switch (state) {
-      case final DispatchLoaded loaded when loaded.notice != null:
-        emit(loaded.copyWith(clearNotice: true));
-      case DispatchEmpty(:final filter, notice: _?):
-        emit(DispatchEmpty(filter: filter));
-      default:
-        break;
-    }
+    if (state case final DispatchReady ready when ready.notice != null) emit(ready.withAction(clearNotice: true));
   }
 
   Future<void> _onAcceptRequested(DispatchAcceptRequested event, Emitter<DispatchState> emit) =>
@@ -85,26 +81,34 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
       _act(emit, event.id, () => cancelRequest(id: event.id, reason: event.reason), RequestCancelledByStaff.new);
 
   /// Izbor preživljava osvežavanje samo ako je zahtev i dalje na stranici.
-  Future<void> _reload(Emitter<DispatchState> emit, {DispatchNotice? notice, DispatchLoaded? previous}) async {
+  Future<void> _reload(Emitter<DispatchState> emit, {DispatchNotice? notice, DispatchReady? previous}) async {
+    final generation = ++_generation;
+    final filter = _filter;
+    var offset = _offset;
+    bool stale() => generation != _generation || emit.isDone;
     try {
-      var page = await getAllRequests(offset: _offset, status: _filter);
+      var page = await getAllRequests(offset: offset, status: filter);
+      if (stale()) return;
       if (page.isPastEnd) {
-        _offset = page.lastOffset;
-        page = await getAllRequests(offset: _offset, status: _filter);
+        offset = page.lastOffset;
+        page = await getAllRequests(offset: offset, status: filter);
+        if (stale()) return;
       }
       final washers = await getWashers();
+      if (stale()) return;
+      _offset = offset;
+      if (!page.items.any((r) => r.id == _selectedId)) _selectedId = null;
       if (page.isEmpty) {
-        emit(DispatchEmpty(filter: _filter, notice: notice));
+        emit(DispatchEmpty(washers: washers, filter: filter, notice: notice));
         return;
       }
-      final stillThere = page.items.any((r) => r.id == _selectedId);
-      if (!stillThere) _selectedId = null;
-      emit(DispatchLoaded(page: page, washers: washers, filter: _filter, selectedId: _selectedId, notice: notice));
+      emit(DispatchLoaded(page: page, washers: washers, filter: filter, selectedId: _selectedId, notice: notice));
     } on Exception catch (cause) {
+      if (stale()) return;
       if (previous != null && notice != null) {
-        emit(previous.copyWith(clearBusy: true, notice: notice));
+        emit(previous.withAction(clearBusy: true, notice: notice));
       } else {
-        emit(DispatchFailure(cause, filter: _filter));
+        emit(DispatchFailure(cause, filter: filter));
       }
     }
   }
@@ -118,13 +122,14 @@ final class DispatchBloc extends Bloc<DispatchEvent, DispatchState> {
     DispatchNotice Function(WashRequest) onSuccess,
   ) async {
     final current = state;
-    if (current is! DispatchLoaded || current.busyId != null) return;
-    emit(current.copyWith(busyId: id));
+    if (current is! DispatchReady || current.busyId != null) return;
+    _generation++;
+    emit(current.withAction(busyId: id));
     final Result<WashRequest> result;
     try {
       result = await action();
     } on Exception catch (cause) {
-      emit(current.copyWith(clearBusy: true, notice: DispatchActionFailed(cause)));
+      emit(current.withAction(clearBusy: true, notice: DispatchActionFailed(cause)));
       return;
     }
     await _reload(

@@ -38,36 +38,72 @@ final class DispatchFailure extends DispatchState {
   String toString() => 'DispatchFailure(${cause.runtimeType})';
 }
 
-final class DispatchEmpty extends DispatchState {
-  const DispatchEmpty({this.filter, this.notice});
+sealed class DispatchReady extends DispatchState {
+  const DispatchReady({required this.washers, this.filter, this.busyId, this.notice});
 
-  @override
-  final RequestStatusFilter? filter;
-  @override
-  final DispatchNotice? notice;
-
-  @override
-  List<Object?> get props => [filter, notice];
-}
-
-final class DispatchLoaded extends DispatchState {
-  const DispatchLoaded({
-    required this.page,
-    required this.washers,
-    this.filter,
-    this.selectedId,
-    this.busyId,
-    this.notice,
-  });
-
-  final RequestPage page;
   final List<Washer> washers;
   @override
   final RequestStatusFilter? filter;
-  final WashRequestId? selectedId;
   final WashRequestId? busyId;
   @override
   final DispatchNotice? notice;
+
+  /// Dostupnost perača računa server nad svim aktivnim poslovima, ne samo nad ovom stranicom.
+  bool isWasherBusy(WasherId washer) => washers.where((w) => w.id == washer).firstOrNull?.hasActiveJob ?? false;
+
+  String washerName(WasherId washer) => washers.where((w) => w.id == washer).firstOrNull?.name ?? washer.value;
+
+  List<Object?> get _washerProps => washers.map((w) => (w.id, w.name, w.hasActiveJob)).toList();
+
+  DispatchReady withAction({
+    WashRequestId? busyId,
+    bool clearBusy = false,
+    DispatchNotice? notice,
+    bool clearNotice = false,
+  });
+}
+
+final class DispatchEmpty extends DispatchReady {
+  const DispatchEmpty({super.washers = const [], super.filter, super.busyId, super.notice});
+
+  @override
+  List<Object?> get props => [_washerProps, filter, busyId, notice];
+
+  @override
+  String toString() => [
+    'DispatchEmpty(',
+    filter?.name ?? 'any',
+    if (busyId case final id?) ', busy ${id.value}',
+    if (notice case final notice?) ', ${notice.runtimeType}',
+    ')',
+  ].join();
+
+  @override
+  DispatchEmpty withAction({
+    WashRequestId? busyId,
+    bool clearBusy = false,
+    DispatchNotice? notice,
+    bool clearNotice = false,
+  }) => DispatchEmpty(
+    washers: washers,
+    filter: filter,
+    busyId: clearBusy ? null : (busyId ?? this.busyId),
+    notice: clearNotice ? null : (notice ?? this.notice),
+  );
+}
+
+final class DispatchLoaded extends DispatchReady {
+  const DispatchLoaded({
+    required this.page,
+    required super.washers,
+    super.filter,
+    this.selectedId,
+    super.busyId,
+    super.notice,
+  });
+
+  final RequestPage page;
+  final WashRequestId? selectedId;
 
   List<WashRequest> get requests => page.items;
 
@@ -77,20 +113,8 @@ final class DispatchLoaded extends DispatchState {
 
   bool isBusy(WashRequest request) => busyId == request.id;
 
-  /// Dostupnost perača računa server nad svim aktivnim poslovima, ne samo nad ovom stranicom.
-  bool isWasherBusy(WasherId washer) => washers.where((w) => w.id == washer).firstOrNull?.hasActiveJob ?? false;
-
-  String washerName(WasherId washer) => washers.where((w) => w.id == washer).firstOrNull?.name ?? washer.value;
-
   @override
-  List<Object?> get props => [
-    page,
-    washers.map((w) => (w.id, w.name, w.hasActiveJob)).toList(),
-    filter,
-    selectedId,
-    busyId,
-    notice,
-  ];
+  List<Object?> get props => [page, _washerProps, filter, selectedId, busyId, notice];
 
   @override
   String toString() => [
@@ -101,6 +125,14 @@ final class DispatchLoaded extends DispatchState {
     if (notice case final notice?) ', ${notice.runtimeType}',
     ')',
   ].join();
+
+  @override
+  DispatchLoaded withAction({
+    WashRequestId? busyId,
+    bool clearBusy = false,
+    DispatchNotice? notice,
+    bool clearNotice = false,
+  }) => copyWith(busyId: busyId, clearBusy: clearBusy, notice: notice, clearNotice: clearNotice);
 
   DispatchLoaded copyWith({
     WashRequestId? selectedId,
