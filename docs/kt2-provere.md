@@ -174,6 +174,18 @@ Release veb backoffice je posluživan na `http://localhost:3000` i proveren u he
 
 Na ovom Windows računaru `docker compose up --build` traži dodatnu bake dozvolu za putanju Dockerfile-a (`--allow=fs.read=apps\server\Dockerfile`). Ista slika je izgrađena komandom `docker build -f apps/server/Dockerfile -t carwash-kt2-server .`, a zatim pokrenuta sa `docker compose up -d --wait`. Na macOS-u ranije provereni `docker compose up --build` nije menjan.
 
+### Ispravke posle pregleda (20. novembar 2026.)
+
+Pregled verzije `0f2d702` našao je tri greške u backoffice-u; sve tri su ispravljene i pokrivene testovima koji padaju na toj verziji.
+
+1. **„Sva stanja“ nije uklanjalo filter.** `PopupMenuButton` vrednost `null` tumači kao odustajanje. Meni sada koristi privatni enum `_FilterChoice` sa nenultom opcijom za sva stanja, koja se u `onSelected` prevodi u `DispatchFilterChanged(null)`. Mrežni ugovor je isti: bez filtera se `status` izostavlja.
+2. **Sporiji stari odgovor je prepisivao noviji prikaz.** `DispatchBloc._reload` dobija redni broj učitavanja i lokalni snimak filtera i offseta. Posle svakog čekanja (stranica, povratak sa stranice van opsega, perači) odgovor se odbacuje ako je u međuvremenu počelo novije učitavanje ili radnja; to važi i za uspeh i za grešku. Offset se upisuje tek kad se odgovor prihvati. Početak radnje poništava učitavanja koja još traju, pa ne mogu da uklone `busy`.
+3. **Uski detalj je gubio radnje kad filtrirana lista postane prazna.** Uvedeno je zajedničko stanje `DispatchReady` za `DispatchLoaded` i `DispatchEmpty`; prazna tabla sada nosi perače, filter, `busyId` i poruku. `_act`, potvrda poruke, `RequestDetailScreen` i `assignWasher` rade nad bilo kojom spremnom tablom.
+
+Regresioni testovi: `packages/blocs/test/dispatch_stale_load_test.dart` (6, sa `Completer` odgovorima), pet testova prazne table u `dispatch_bloc_test.dart`, `apps/backoffice/test/review_fixes_test.dart` (9 widget testova, uključujući pravi `api_client` sa `MockClient` koji potvrđuje upit bez `status`). Na verziji `0f2d702` pada 5 od 6 Bloc testova trke i 7 od 9 widget testova; preostali čuvaju ponašanje koje je i ranije bilo ispravno (Esc ne menja filter, „Prikaži sve“, greška poslednjeg važećeg upita).
+
+Posle ispravki prolazi 259 testova (181 Dart uključujući 30 serverskih nad `carwash_test`, 78 Flutter), bez preskakanja; `flutter analyze` i provera formata su čisti. Release veb na `localhost:3000` je u Chrome-u nad serverom proveren: „U toku“ → „Sva stanja“, Esc čuva filter, brz niz filtera, i na širini 600 px jedini prihvaćeni zahtev vraćen u red pa ponovo dodeljen sa prazne table (zahtev `seed-3` je posle provere ponovo prihvaćen, perač w-2). Windows release build i desktop integracioni test prolaze.
+
 ## Preostalo za kompletnu KT2 demonstraciju
 
 Ovo nije bilo moguće izvršiti na Windows računaru i ostaje za ručnu proveru pre odbrane:
